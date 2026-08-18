@@ -40,6 +40,7 @@ import {
   ConfigurationOcpp16Api,
   ConfigurationOcpp2Api,
   ConnectedStationFilter,
+  DerControlDataApi,
   DerControlOcpp2Api,
   DerControlModule,
   EmsDataApi,
@@ -561,7 +562,10 @@ export class CitrineOSServer {
       this._ocppValidator,
     );
     await this.initHandlersAndAddModule(module);
-    this.apis.push(new DerControlOcpp2Api(module, this._server, OCPPVersion.OCPP2_1, this._logger));
+    this.apis.push(
+      new DerControlOcpp2Api(module, this._server, OCPPVersion.OCPP2_1, this._logger),
+      new DerControlDataApi(module, this._server, this._logger),
+    );
   }
 
   protected async initEVDriverModule() {

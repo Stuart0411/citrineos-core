@@ -4,4 +4,5 @@
 
 export type { IDerControlModuleApi } from './module/interface.js';
 export { DerControlOcpp2Api } from './module/2/MessageApi.js';
+export { DerControlDataApi } from './module/DataApi.js';
 export { DerControlModule } from './module/module.js';
