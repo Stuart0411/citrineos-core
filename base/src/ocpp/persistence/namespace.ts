@@ -18,6 +18,7 @@ export enum Namespace {
   EmsDecision = 'EmsDecision',
   DerControl = 'DerControl',
   DerEvent = 'DerEvent',
+  StationDerCapability = 'StationDerCapability',
   EmsIntakeTelemetry = 'EmsIntakeTelemetry',
   Connection = 'Connection',
   EmsSiteIntent = 'EmsSiteIntent',

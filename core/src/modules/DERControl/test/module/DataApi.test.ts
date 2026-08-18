@@ -19,6 +19,7 @@ vi.spyOn(Reflect, 'getMetadata').mockReturnValue([]);
 describe('DerControlDataApi', () => {
   let derControlRepository: { readAllByQuery: ReturnType<typeof vi.fn> };
   let derEventRepository: { readAllByQuery: ReturnType<typeof vi.fn> };
+  let stationDerCapabilityRepository: { readAllByQuery: ReturnType<typeof vi.fn> };
   let api: DerControlDataApi;
 
   beforeEach(() => {
@@ -28,6 +29,9 @@ describe('DerControlDataApi', () => {
       readAllByQuery: vi.fn().mockResolvedValue([]),
     };
     derEventRepository = {
+      readAllByQuery: vi.fn().mockResolvedValue([]),
+    };
+    stationDerCapabilityRepository = {
       readAllByQuery: vi.fn().mockResolvedValue([]),
     };
 
@@ -41,6 +45,7 @@ describe('DerControlDataApi', () => {
       },
       derControlRepository,
       derEventRepository,
+      stationDerCapabilityRepository,
     } as any;
 
     api = new DerControlDataApi(moduleMock, {} as any);
@@ -171,6 +176,55 @@ describe('DerControlDataApi', () => {
           tenantId: 1,
           fromOccurredAt: '2026-08-18T04:00:00.000Z',
           toOccurredAt: '2026-08-18T03:00:00.000Z',
+        },
+      } as any),
+    ).rejects.toBeInstanceOf(BadRequestError);
+  });
+
+  it('maps station DER capability filters into repository query with bounded limit', async () => {
+    await api.getStationDerCapabilities({
+      query: {
+        tenantId: 6,
+        stationId: 'cs-6',
+        fromUpdatedAt: '2026-08-18T05:00:00.000Z',
+        toUpdatedAt: '2026-08-18T06:00:00.000Z',
+        limit: 5000,
+      },
+    } as any);
+
+    expect(stationDerCapabilityRepository.readAllByQuery).toHaveBeenCalledWith(
+      6,
+      expect.objectContaining({
+        where: expect.objectContaining({
+          stationId: 'cs-6',
+        }),
+        order: [['updatedAt', 'DESC']],
+        limit: 1000,
+      }),
+    );
+
+    const call = stationDerCapabilityRepository.readAllByQuery.mock.calls[0][1];
+    const updatedAtFilter = call.where.updatedAt as Record<symbol, Date>;
+    expect(updatedAtFilter[Op.gte]).toEqual(new Date('2026-08-18T05:00:00.000Z'));
+    expect(updatedAtFilter[Op.lte]).toEqual(new Date('2026-08-18T06:00:00.000Z'));
+  });
+
+  it('throws BadRequestError for invalid station DER capability date windows', async () => {
+    await expect(
+      api.getStationDerCapabilities({
+        query: {
+          tenantId: 1,
+          fromUpdatedAt: 'bad-date',
+        },
+      } as any),
+    ).rejects.toBeInstanceOf(BadRequestError);
+
+    await expect(
+      api.getStationDerCapabilities({
+        query: {
+          tenantId: 1,
+          fromUpdatedAt: '2026-08-18T07:00:00.000Z',
+          toUpdatedAt: '2026-08-18T06:00:00.000Z',
         },
       } as any),
     ).rejects.toBeInstanceOf(BadRequestError);

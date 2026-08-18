@@ -6,9 +6,11 @@ import { Op } from 'sequelize';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { DerControl } from '../model/DerControl.js';
 import { DerEvent } from '../model/DerEvent.js';
+import { StationDerCapability } from '../model/StationDerCapability.js';
 import { SequelizeRepository } from './Base.js';
 import { SequelizeDerControlRepository } from './DerControl.js';
 import { SequelizeDerEventRepository } from './DerEvent.js';
+import { SequelizeStationDerCapabilityRepository } from './StationDerCapability.js';
 
 describe('DER Sequelize repositories', () => {
   beforeEach(() => {
@@ -181,5 +183,30 @@ describe('DER Sequelize repositories', () => {
     );
     expect(createSpy).toHaveBeenCalledWith(5, builtEvent);
     expect(result).toBe(createdEvent);
+  });
+
+  it('upsertCapabilitySnapshot writes normalized station capability state', async () => {
+    const upsertSpy = vi.spyOn(StationDerCapability, 'upsert').mockResolvedValue([{} as any, true]);
+    const repository = new SequelizeStationDerCapabilityRepository({} as any, undefined, {} as any);
+
+    await repository.upsertCapabilitySnapshot(4, 'cs-4', {
+      supportedControlTypesJson: ['Curve', 'Gradients'],
+      snapshotJson: { supportedControlCount: 2 },
+      requestId: 17,
+      tbc: false,
+      deviceModelSnapshotJson: null,
+    });
+
+    expect(upsertSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tenantId: 4,
+        stationId: 'cs-4',
+        supportedControlTypesJson: ['Curve', 'Gradients'],
+        snapshotJson: { supportedControlCount: 2 },
+        requestId: 17,
+        tbc: false,
+        deviceModelSnapshotJson: null,
+      }),
+    );
   });
 });

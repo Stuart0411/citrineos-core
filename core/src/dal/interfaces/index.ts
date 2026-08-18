@@ -23,6 +23,8 @@ export { DerControlQuerySchema } from './queries/DerControl.js';
 export type { DerControlQuerystring } from './queries/DerControl.js';
 export { DerEventQuerySchema } from './queries/DerEvent.js';
 export type { DerEventQuerystring } from './queries/DerEvent.js';
+export { StationDerCapabilityQuerySchema } from './queries/StationDerCapability.js';
+export type { StationDerCapabilityQuerystring } from './queries/StationDerCapability.js';
 export { EmsDecisionQuerySchema } from './queries/EmsDecision.js';
 export type { EmsDecisionQuerystring } from './queries/EmsDecision.js';
 export { EmsIntakeTelemetryQuerySchema } from './queries/EmsIntakeTelemetry.js';

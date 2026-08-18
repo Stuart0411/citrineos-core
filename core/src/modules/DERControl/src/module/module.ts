@@ -26,11 +26,13 @@ import type {
   IDerControlRepository,
   IDerEventRepository,
   IOCPPMessageRepository,
+  IStationDerCapabilityRepository,
 } from '@dal/interfaces/repositories.js';
 import {
   SequelizeDerControlRepository,
   SequelizeDerEventRepository,
   SequelizeOCPPMessageRepository,
+  SequelizeStationDerCapabilityRepository,
 } from '@dal/layers/sequelize/index.js';
 import type { ILogObj } from 'tslog';
 import { Logger } from 'tslog';
@@ -58,6 +60,7 @@ export class DerControlModule extends AbstractModule {
   protected _derControlRepository: IDerControlRepository;
   protected _derEventRepository: IDerEventRepository;
   protected _ocppMessageRepository: IOCPPMessageRepository;
+  protected _stationDerCapabilityRepository: IStationDerCapabilityRepository;
 
   constructor(
     config: BootstrapConfig & SystemConfig,
@@ -69,6 +72,7 @@ export class DerControlModule extends AbstractModule {
     derControlRepository?: IDerControlRepository,
     derEventRepository?: IDerEventRepository,
     ocppMessageRepository?: IOCPPMessageRepository,
+    stationDerCapabilityRepository?: IStationDerCapabilityRepository,
   ) {
     super(config, cache, handler, sender, EventGroup.DerControl, logger, ocppValidator);
 
@@ -80,6 +84,8 @@ export class DerControlModule extends AbstractModule {
       derEventRepository || new SequelizeDerEventRepository(config, logger);
     this._ocppMessageRepository =
       ocppMessageRepository || new SequelizeOCPPMessageRepository(config, logger);
+    this._stationDerCapabilityRepository =
+      stationDerCapabilityRepository || new SequelizeStationDerCapabilityRepository(config, logger);
   }
 
   get derControlRepository(): IDerControlRepository {
@@ -88,6 +94,10 @@ export class DerControlModule extends AbstractModule {
 
   get derEventRepository(): IDerEventRepository {
     return this._derEventRepository;
+  }
+
+  get stationDerCapabilityRepository(): IStationDerCapabilityRepository {
+    return this._stationDerCapabilityRepository;
   }
 
   validateSetDERControlRequest(request: OCPP2_1.SetDERControlRequest): void {
@@ -208,6 +218,12 @@ export class DerControlModule extends AbstractModule {
       payloadJson: this._buildCapabilitySnapshotPayload(message.payload),
       occurredAt: new Date(),
     });
+
+    await this._stationDerCapabilityRepository.upsertCapabilitySnapshot(
+      message.context.tenantId,
+      message.context.stationId,
+      this._buildCapabilityState(message.payload),
+    );
 
     await this.sendCallResultWithMessage(message, {} as OCPP2_1.ReportDERControlResponse);
   }
@@ -442,6 +458,27 @@ export class DerControlModule extends AbstractModule {
       supportedControlTypes,
       supportedControlCount: supportedControlTypes.length,
       recordedControlCount: controls.length,
+    };
+  }
+
+  private _buildCapabilityState(payload: OCPP2_1.ReportDERControlRequest): {
+    supportedControlTypesJson: string[];
+    snapshotJson: Record<string, unknown>;
+    requestId: number;
+    tbc: boolean;
+    deviceModelSnapshotJson: null;
+  } {
+    const snapshot = this._buildCapabilitySnapshotPayload(payload);
+
+    return {
+      supportedControlTypesJson: snapshot.supportedControlTypes as string[],
+      snapshotJson: {
+        ...snapshot,
+        rawReport: payload as unknown as Record<string, unknown>,
+      },
+      requestId: payload.requestId,
+      tbc: payload.tbc ?? false,
+      deviceModelSnapshotJson: null,
     };
   }
 

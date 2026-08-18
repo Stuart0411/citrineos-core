@@ -17,6 +17,9 @@ describe('DerControlModule handlers', () => {
   let derEventRepository: {
     createEvent: ReturnType<typeof vi.fn>;
   };
+  let stationDerCapabilityRepository: {
+    upsertCapabilitySnapshot: ReturnType<typeof vi.fn>;
+  };
   let ocppMessageRepository: {
     getRequestByCorrelationId: ReturnType<typeof vi.fn>;
   };
@@ -35,6 +38,10 @@ describe('DerControlModule handlers', () => {
 
     derEventRepository = {
       createEvent: vi.fn().mockResolvedValue(undefined),
+    };
+
+    stationDerCapabilityRepository = {
+      upsertCapabilitySnapshot: vi.fn().mockResolvedValue(undefined),
     };
 
     ocppMessageRepository = {
@@ -72,6 +79,7 @@ describe('DerControlModule handlers', () => {
       derControlRepository as any,
       derEventRepository as any,
       ocppMessageRepository as any,
+      stationDerCapabilityRepository as any,
     );
   });
 
@@ -87,6 +95,7 @@ describe('DerControlModule handlers', () => {
         stationId: 'cs-1',
       },
       payload: {
+        requestId: 91,
         curve: [
           {
             id: 'ctrl-curve-1',
@@ -162,6 +171,15 @@ describe('DerControlModule handlers', () => {
           supportedControlCount: 2,
           recordedControlCount: 2,
         }),
+      }),
+    );
+    expect(stationDerCapabilityRepository.upsertCapabilitySnapshot).toHaveBeenCalledWith(
+      1,
+      'cs-1',
+      expect.objectContaining({
+        supportedControlTypesJson: ['Curve', 'Gradients'],
+        requestId: 91,
+        tbc: false,
       }),
     );
     expect(ackSpy).toHaveBeenCalledTimes(1);
@@ -483,6 +501,7 @@ describe('DerControlModule handlers', () => {
       derControlRepository as any,
       derEventRepository as any,
       ocppMessageRepository as any,
+      stationDerCapabilityRepository as any,
     );
 
     expect(() =>

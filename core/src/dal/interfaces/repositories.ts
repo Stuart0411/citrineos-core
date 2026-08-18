@@ -43,6 +43,7 @@ import type { DerControl } from '../layers/sequelize/model/DerControl.js';
 import type { DerEvent } from '../layers/sequelize/model/DerEvent.js';
 import type { EmsDecision } from '../layers/sequelize/model/EmsDecision.js';
 import type { EmsSiteIntent } from '../layers/sequelize/model/EmsSiteIntent.js';
+import type { StationDerCapability } from '../layers/sequelize/model/StationDerCapability.js';
 import type {
   ChargingNeeds,
   ChargingProfile,
@@ -387,6 +388,20 @@ export interface IDerEventRepository extends CrudRepository<DerEvent> {
       occurredAt: Date;
     },
   ): Promise<DerEvent>;
+}
+
+export interface IStationDerCapabilityRepository extends CrudRepository<StationDerCapability> {
+  upsertCapabilitySnapshot(
+    tenantId: number,
+    stationId: string,
+    value: {
+      supportedControlTypesJson: string[];
+      snapshotJson: Record<string, unknown>;
+      requestId: number;
+      tbc: boolean;
+      deviceModelSnapshotJson?: Record<string, unknown> | null;
+    },
+  ): Promise<void>;
 }
 
 export interface ITransactionEventRepository extends CrudRepository<TransactionEvent> {

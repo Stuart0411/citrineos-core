@@ -15,8 +15,10 @@ import {
 import {
   DerControlQuerySchema,
   DerEventQuerySchema,
+  StationDerCapabilityQuerySchema,
   type DerControlQuerystring,
   type DerEventQuerystring,
+  type StationDerCapabilityQuerystring,
 } from '@dal/interfaces/index.js';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { Op } from 'sequelize';
@@ -149,6 +151,51 @@ export class DerControlDataApi
     return this._module.derEventRepository.readAllByQuery(tenantId, {
       where,
       order: [['occurredAt', 'DESC']],
+      limit: boundedLimit,
+    });
+  }
+
+  @AsDataEndpoint(Namespace.StationDerCapability, HttpMethod.Get, StationDerCapabilityQuerySchema)
+  async getStationDerCapabilities(
+    request: FastifyRequest<{ Querystring: StationDerCapabilityQuerystring }>,
+  ) {
+    const tenantId = request.query.tenantId ?? DEFAULT_TENANT_ID;
+    const { stationId, fromUpdatedAt, toUpdatedAt, limit } = request.query;
+
+    const fromDate = fromUpdatedAt ? new Date(fromUpdatedAt) : undefined;
+    const toDate = toUpdatedAt ? new Date(toUpdatedAt) : undefined;
+
+    if (fromDate && Number.isNaN(fromDate.getTime())) {
+      throw new BadRequestError('fromUpdatedAt must be a valid datetime string');
+    }
+    if (toDate && Number.isNaN(toDate.getTime())) {
+      throw new BadRequestError('toUpdatedAt must be a valid datetime string');
+    }
+    if (fromDate && toDate && toDate < fromDate) {
+      throw new BadRequestError('toUpdatedAt must be greater than or equal to fromUpdatedAt');
+    }
+
+    const where: Record<string, unknown> = {};
+    if (stationId) {
+      where.stationId = stationId;
+    }
+
+    if (fromDate || toDate) {
+      const updatedAtFilter: Record<symbol, Date> = {};
+      if (fromDate) {
+        updatedAtFilter[Op.gte] = fromDate;
+      }
+      if (toDate) {
+        updatedAtFilter[Op.lte] = toDate;
+      }
+      where.updatedAt = updatedAtFilter;
+    }
+
+    const boundedLimit = Math.min(Math.max(limit ?? 200, 1), 1000);
+
+    return this._module.stationDerCapabilityRepository.readAllByQuery(tenantId, {
+      where,
+      order: [['updatedAt', 'DESC']],
       limit: boundedLimit,
     });
   }

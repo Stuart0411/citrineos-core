@@ -27,6 +27,7 @@ import { DerControl } from './model/DerControl.js';
 import { DerEvent } from './model/DerEvent.js';
 import { EmsDecision } from './model/EmsDecision.js';
 import { EmsSiteIntent } from './model/EmsSiteIntent.js';
+import { StationDerCapability } from './model/StationDerCapability.js';
 import { EventData } from './model/VariableMonitoring/EventData.js';
 import { Evse } from './model/Location/Evse.js';
 import { EvseType } from './model/DeviceModel/EvseType.js';
@@ -156,6 +157,7 @@ export class DefaultSequelizeInstance {
         DerEvent,
         EmsDecision,
         EmsSiteIntent,
+        StationDerCapability,
         ChangeConfiguration,
         ChargingNeeds,
         ChargingProfile,
