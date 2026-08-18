@@ -25,10 +25,12 @@ import {
 import type {
   IDerControlRepository,
   IDerEventRepository,
+  IDeviceModelRepository,
   IOCPPMessageRepository,
   IStationDerCapabilityRepository,
 } from '@dal/interfaces/repositories.js';
 import {
+  SequelizeDeviceModelRepository,
   SequelizeDerControlRepository,
   SequelizeDerEventRepository,
   SequelizeOCPPMessageRepository,
@@ -61,6 +63,7 @@ export class DerControlModule extends AbstractModule {
   protected _derEventRepository: IDerEventRepository;
   protected _ocppMessageRepository: IOCPPMessageRepository;
   protected _stationDerCapabilityRepository: IStationDerCapabilityRepository;
+  protected _deviceModelRepository: IDeviceModelRepository;
 
   constructor(
     config: BootstrapConfig & SystemConfig,
@@ -73,6 +76,7 @@ export class DerControlModule extends AbstractModule {
     derEventRepository?: IDerEventRepository,
     ocppMessageRepository?: IOCPPMessageRepository,
     stationDerCapabilityRepository?: IStationDerCapabilityRepository,
+    deviceModelRepository?: IDeviceModelRepository,
   ) {
     super(config, cache, handler, sender, EventGroup.DerControl, logger, ocppValidator);
 
@@ -86,6 +90,8 @@ export class DerControlModule extends AbstractModule {
       ocppMessageRepository || new SequelizeOCPPMessageRepository(config, logger);
     this._stationDerCapabilityRepository =
       stationDerCapabilityRepository || new SequelizeStationDerCapabilityRepository(config, logger);
+    this._deviceModelRepository =
+      deviceModelRepository || new SequelizeDeviceModelRepository(config, logger);
   }
 
   get derControlRepository(): IDerControlRepository {
@@ -261,7 +267,11 @@ export class DerControlModule extends AbstractModule {
     await this._stationDerCapabilityRepository.upsertCapabilitySnapshot(
       message.context.tenantId,
       message.context.stationId,
-      this._buildCapabilityState(message.payload),
+      await this._buildCapabilityState(
+        message.context.tenantId,
+        message.context.stationId,
+        message.payload,
+      ),
     );
 
     await this.sendCallResultWithMessage(message, {} as OCPP2_1.ReportDERControlResponse);
@@ -500,14 +510,19 @@ export class DerControlModule extends AbstractModule {
     };
   }
 
-  private _buildCapabilityState(payload: OCPP2_1.ReportDERControlRequest): {
+  private async _buildCapabilityState(
+    tenantId: number,
+    stationId: string,
+    payload: OCPP2_1.ReportDERControlRequest,
+  ): Promise<{
     supportedControlTypesJson: string[];
     snapshotJson: Record<string, unknown>;
     requestId: number;
     tbc: boolean;
-    deviceModelSnapshotJson: null;
-  } {
+    deviceModelSnapshotJson: Record<string, unknown> | null;
+  }> {
     const snapshot = this._buildCapabilitySnapshotPayload(payload);
+    const deviceModelSnapshotJson = await this._readDeviceModelSnapshot(tenantId, stationId);
 
     return {
       supportedControlTypesJson: snapshot.supportedControlTypes as string[],
@@ -517,7 +532,41 @@ export class DerControlModule extends AbstractModule {
       },
       requestId: payload.requestId,
       tbc: payload.tbc ?? false,
-      deviceModelSnapshotJson: null,
+      deviceModelSnapshotJson,
+    };
+  }
+
+  private async _readDeviceModelSnapshot(
+    tenantId: number,
+    stationId: string,
+  ): Promise<Record<string, unknown> | null> {
+    const rows = await this._deviceModelRepository.readAllByQuery(tenantId, {
+      where: {
+        stationId,
+      },
+      order: [['updatedAt', 'DESC']],
+      limit: 50,
+    });
+
+    if (rows.length === 0) {
+      return null;
+    }
+
+    return {
+      sampledAttributeCount: rows.length,
+      attributes: rows.map((row) => {
+        const item = row as unknown as Record<string, unknown>;
+
+        return {
+          type: typeof item.type === 'string' ? item.type : null,
+          dataType: typeof item.dataType === 'string' ? item.dataType : null,
+          value: item.value ?? null,
+          generatedAt: typeof item.generatedAt === 'string' ? item.generatedAt : null,
+          variableId: typeof item.variableId === 'number' ? item.variableId : null,
+          componentId: typeof item.componentId === 'number' ? item.componentId : null,
+          evseDatabaseId: typeof item.evseDatabaseId === 'number' ? item.evseDatabaseId : null,
+        };
+      }),
     };
   }
 

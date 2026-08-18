@@ -186,6 +186,8 @@ describe('DerControlDataApi', () => {
       query: {
         tenantId: 6,
         stationId: 'cs-6',
+        supportedControlType: 'Gradients',
+        hasDeviceModelSnapshot: true,
         fromUpdatedAt: '2026-08-18T05:00:00.000Z',
         toUpdatedAt: '2026-08-18T06:00:00.000Z',
         limit: 5000,
@@ -197,6 +199,8 @@ describe('DerControlDataApi', () => {
       expect.objectContaining({
         where: expect.objectContaining({
           stationId: 'cs-6',
+          supportedControlTypesJson: expect.any(Object),
+          deviceModelSnapshotJson: expect.any(Object),
         }),
         order: [['updatedAt', 'DESC']],
         limit: 1000,
@@ -204,6 +208,10 @@ describe('DerControlDataApi', () => {
     );
 
     const call = stationDerCapabilityRepository.readAllByQuery.mock.calls[0][1];
+    const supportedTypesFilter = call.where.supportedControlTypesJson as Record<symbol, string[]>;
+    expect(supportedTypesFilter[Op.contains]).toEqual(['Gradients']);
+    const deviceModelFilter = call.where.deviceModelSnapshotJson as Record<symbol, null>;
+    expect(deviceModelFilter[Op.not]).toBeNull();
     const updatedAtFilter = call.where.updatedAt as Record<symbol, Date>;
     expect(updatedAtFilter[Op.gte]).toEqual(new Date('2026-08-18T05:00:00.000Z'));
     expect(updatedAtFilter[Op.lte]).toEqual(new Date('2026-08-18T06:00:00.000Z'));

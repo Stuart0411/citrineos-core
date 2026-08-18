@@ -21,6 +21,9 @@ describe('DerControlModule handlers', () => {
     upsertCapabilitySnapshot: ReturnType<typeof vi.fn>;
     readOnlyOneByQuery: ReturnType<typeof vi.fn>;
   };
+  let deviceModelRepository: {
+    readAllByQuery: ReturnType<typeof vi.fn>;
+  };
   let ocppMessageRepository: {
     getRequestByCorrelationId: ReturnType<typeof vi.fn>;
   };
@@ -44,6 +47,10 @@ describe('DerControlModule handlers', () => {
     stationDerCapabilityRepository = {
       upsertCapabilitySnapshot: vi.fn().mockResolvedValue(undefined),
       readOnlyOneByQuery: vi.fn().mockResolvedValue(undefined),
+    };
+
+    deviceModelRepository = {
+      readAllByQuery: vi.fn().mockResolvedValue([]),
     };
 
     ocppMessageRepository = {
@@ -82,6 +89,7 @@ describe('DerControlModule handlers', () => {
       derEventRepository as any,
       ocppMessageRepository as any,
       stationDerCapabilityRepository as any,
+      deviceModelRepository as any,
     );
   });
 
@@ -133,6 +141,18 @@ describe('DerControlModule handlers', () => {
       },
     } as any;
 
+    deviceModelRepository.readAllByQuery.mockResolvedValue([
+      {
+        type: 'Actual',
+        dataType: 'string',
+        value: 'Enabled',
+        generatedAt: '2026-08-18T10:30:00.000Z',
+        variableId: 14,
+        componentId: 7,
+        evseDatabaseId: 3,
+      },
+    ]);
+
     await (module as any)._handleReportDERControlRequest(message);
 
     expect(derControlRepository.upsertFromReport).toHaveBeenCalledTimes(2);
@@ -182,6 +202,17 @@ describe('DerControlModule handlers', () => {
         supportedControlTypesJson: ['Curve', 'Gradients'],
         requestId: 91,
         tbc: false,
+        deviceModelSnapshotJson: expect.objectContaining({
+          sampledAttributeCount: 1,
+          attributes: [
+            expect.objectContaining({
+              type: 'Actual',
+              value: 'Enabled',
+              variableId: 14,
+              componentId: 7,
+            }),
+          ],
+        }),
       }),
     );
     expect(ackSpy).toHaveBeenCalledTimes(1);
@@ -504,6 +535,7 @@ describe('DerControlModule handlers', () => {
       derEventRepository as any,
       ocppMessageRepository as any,
       stationDerCapabilityRepository as any,
+      deviceModelRepository as any,
     );
 
     expect(() =>

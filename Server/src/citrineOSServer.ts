@@ -564,6 +564,7 @@ export class CitrineOSServer {
       this._repositoryStore.derEventRepository,
       this._repositoryStore.ocppMessageRepository,
       this._repositoryStore.stationDerCapabilityRepository,
+      this._repositoryStore.deviceModelRepository,
     );
     await this.initHandlersAndAddModule(module);
     this.apis.push(

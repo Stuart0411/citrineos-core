@@ -160,7 +160,14 @@ export class DerControlDataApi
     request: FastifyRequest<{ Querystring: StationDerCapabilityQuerystring }>,
   ) {
     const tenantId = request.query.tenantId ?? DEFAULT_TENANT_ID;
-    const { stationId, fromUpdatedAt, toUpdatedAt, limit } = request.query;
+    const {
+      stationId,
+      supportedControlType,
+      hasDeviceModelSnapshot,
+      fromUpdatedAt,
+      toUpdatedAt,
+      limit,
+    } = request.query;
 
     const fromDate = fromUpdatedAt ? new Date(fromUpdatedAt) : undefined;
     const toDate = toUpdatedAt ? new Date(toUpdatedAt) : undefined;
@@ -178,6 +185,18 @@ export class DerControlDataApi
     const where: Record<string, unknown> = {};
     if (stationId) {
       where.stationId = stationId;
+    }
+    if (supportedControlType) {
+      where.supportedControlTypesJson = {
+        [Op.contains]: [supportedControlType],
+      };
+    }
+    if (hasDeviceModelSnapshot !== undefined) {
+      where.deviceModelSnapshotJson = hasDeviceModelSnapshot
+        ? {
+            [Op.not]: null,
+          }
+        : null;
     }
 
     if (fromDate || toDate) {
