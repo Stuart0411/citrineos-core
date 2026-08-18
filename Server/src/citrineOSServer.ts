@@ -623,6 +623,9 @@ export class CitrineOSServer {
       this._repositoryStore.emsDecisionRepository,
       this._repositoryStore.locationRepository,
       this._repositoryStore.chargingProfileRepository,
+      undefined,
+      this._repositoryStore.deviceModelRepository,
+      this._repositoryStore.stationEnergyTransferPolicyRepository,
     );
     await this.initHandlersAndAddModule(module);
     await module.startMqttBridge();
