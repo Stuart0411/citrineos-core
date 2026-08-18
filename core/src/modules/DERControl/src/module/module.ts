@@ -258,22 +258,26 @@ export class DerControlModule extends AbstractModule {
       requestPayload && typeof requestPayload.controlId === 'string'
         ? requestPayload.controlId
         : undefined;
-    if (!controlId) {
+
+    const status = this._mapResponseStatus(action, responsePayload.status);
+    if (!status) {
       return;
     }
 
-    const status = this._mapResponseStatus(action, responsePayload.status);
-    if (status) {
+    if (controlId) {
       await this._derControlRepository.updateStatusByControlId(
         tenantId,
         stationId,
         controlId,
         status,
       );
+    } else if (action === OCPP_CallAction.ClearDERControl && status === 'cleared') {
+      await this._reconcileClearBySelection(tenantId, stationId, requestPayload);
     }
 
     if (
       action === OCPP_CallAction.SetDERControl &&
+      !!controlId &&
       status === 'accepted' &&
       Array.isArray(responsePayload.supersededIds)
     ) {
@@ -289,6 +293,31 @@ export class DerControlModule extends AbstractModule {
         );
       }
     }
+  }
+
+  private async _reconcileClearBySelection(
+    tenantId: number,
+    stationId: string,
+    requestPayload: Record<string, unknown> | undefined,
+  ): Promise<void> {
+    if (!requestPayload) {
+      return;
+    }
+
+    const controlType =
+      typeof requestPayload.controlType === 'string' ? requestPayload.controlType : undefined;
+    const isDefault =
+      typeof requestPayload.isDefault === 'boolean' ? requestPayload.isDefault : undefined;
+
+    await this._derControlRepository.updateStatusByControlSelection(
+      tenantId,
+      stationId,
+      'cleared',
+      {
+        controlType,
+        isDefault,
+      },
+    );
   }
 
   private _extractRequestPayload(rawMessage: unknown): Record<string, unknown> | undefined {

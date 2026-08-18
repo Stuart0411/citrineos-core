@@ -128,6 +128,30 @@ describe('DER Sequelize repositories', () => {
     );
   });
 
+  it('updateStatusByControlSelection updates status using control type and default filters', async () => {
+    const updateSpy = vi.spyOn(DerControl, 'update').mockResolvedValue([2]);
+    const repository = new SequelizeDerControlRepository({} as any, undefined, {} as any);
+
+    await repository.updateStatusByControlSelection(11, 'cs-11', 'cleared', {
+      controlType: 'Curve',
+      isDefault: true,
+    });
+
+    expect(updateSpy).toHaveBeenCalledWith(
+      {
+        status: 'cleared',
+      },
+      {
+        where: {
+          tenantId: 11,
+          stationId: 'cs-11',
+          controlType: 'Curve',
+          isDefault: true,
+        },
+      },
+    );
+  });
+
   it('createEvent builds a DER event and delegates to base create', async () => {
     const builtEvent = { id: 7 } as any;
     const createdEvent = { id: 7, created: true } as any;

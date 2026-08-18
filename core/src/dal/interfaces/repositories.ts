@@ -364,6 +364,16 @@ export interface IDerControlRepository extends CrudRepository<DerControl> {
     controlId: string,
     status: string,
   ): Promise<void>;
+
+  updateStatusByControlSelection(
+    tenantId: number,
+    stationId: string,
+    status: string,
+    selection: {
+      controlType?: string;
+      isDefault?: boolean;
+    },
+  ): Promise<void>;
 }
 
 export interface IDerEventRepository extends CrudRepository<DerEvent> {

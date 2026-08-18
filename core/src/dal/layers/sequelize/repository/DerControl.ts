@@ -120,4 +120,35 @@ export class SequelizeDerControlRepository
       },
     );
   }
+
+  async updateStatusByControlSelection(
+    tenantId: number,
+    stationId: string,
+    status: string,
+    selection: {
+      controlType?: string;
+      isDefault?: boolean;
+    },
+  ): Promise<void> {
+    const where: Record<string, unknown> = {
+      tenantId,
+      stationId,
+    };
+
+    if (selection.controlType) {
+      where.controlType = selection.controlType;
+    }
+    if (selection.isDefault !== undefined) {
+      where.isDefault = selection.isDefault;
+    }
+
+    await DerControl.update(
+      {
+        status,
+      },
+      {
+        where,
+      },
+    );
+  }
 }

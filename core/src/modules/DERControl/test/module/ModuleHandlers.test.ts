@@ -11,6 +11,8 @@ describe('DerControlModule handlers', () => {
     upsertFromReport: ReturnType<typeof vi.fn>;
     updateStartStopState: ReturnType<typeof vi.fn>;
     markSupersededByControlId: ReturnType<typeof vi.fn>;
+    updateStatusByControlId: ReturnType<typeof vi.fn>;
+    updateStatusByControlSelection: ReturnType<typeof vi.fn>;
   };
   let derEventRepository: {
     createEvent: ReturnType<typeof vi.fn>;
@@ -28,6 +30,7 @@ describe('DerControlModule handlers', () => {
       updateStartStopState: vi.fn().mockResolvedValue(undefined),
       markSupersededByControlId: vi.fn().mockResolvedValue(undefined),
       updateStatusByControlId: vi.fn().mockResolvedValue(undefined),
+      updateStatusByControlSelection: vi.fn().mockResolvedValue(undefined),
     };
 
     derEventRepository = {
@@ -304,6 +307,34 @@ describe('DerControlModule handlers', () => {
     } as any);
 
     expect(derControlRepository.updateStatusByControlId).not.toHaveBeenCalled();
+  });
+
+  it('clears matching controls by selection when clear request has no controlId', async () => {
+    ocppMessageRepository.getRequestByCorrelationId.mockResolvedValue({
+      message: [2, 'corr-clear-3', 'ClearDERControl', { isDefault: true, controlType: 'Curve' }],
+    });
+
+    await (module as any)._handleClearDERControlResponse({
+      context: {
+        tenantId: 10,
+        stationId: 'cs-10',
+        correlationId: 'corr-clear-3',
+      },
+      payload: {
+        status: 'Accepted',
+      },
+    } as any);
+
+    expect(derControlRepository.updateStatusByControlId).not.toHaveBeenCalled();
+    expect(derControlRepository.updateStatusByControlSelection).toHaveBeenCalledWith(
+      10,
+      'cs-10',
+      'cleared',
+      {
+        controlType: 'Curve',
+        isDefault: true,
+      },
+    );
   });
 
   it('persists DER alarm events and acknowledges request', async () => {
