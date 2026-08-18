@@ -75,6 +75,11 @@ export class DerControlModule extends AbstractModule {
     props?: HandlerProperties,
   ): Promise<void> {
     this._logger.debug('SetDERControl response received:', message, props);
+
+    await this._persistResponseEvent(message.context.tenantId, message.context.stationId, {
+      eventType: 'set_der_control_response',
+      payload: message.payload as unknown as Record<string, unknown>,
+    });
   }
 
   @AsHandler([OCPPVersion.OCPP2_1], OCPP_CallAction.GetDERControl)
@@ -83,6 +88,11 @@ export class DerControlModule extends AbstractModule {
     props?: HandlerProperties,
   ): Promise<void> {
     this._logger.debug('GetDERControl response received:', message, props);
+
+    await this._persistResponseEvent(message.context.tenantId, message.context.stationId, {
+      eventType: 'get_der_control_response',
+      payload: message.payload as unknown as Record<string, unknown>,
+    });
   }
 
   @AsHandler([OCPPVersion.OCPP2_1], OCPP_CallAction.ClearDERControl)
@@ -91,6 +101,11 @@ export class DerControlModule extends AbstractModule {
     props?: HandlerProperties,
   ): Promise<void> {
     this._logger.debug('ClearDERControl response received:', message, props);
+
+    await this._persistResponseEvent(message.context.tenantId, message.context.stationId, {
+      eventType: 'clear_der_control_response',
+      payload: message.payload as unknown as Record<string, unknown>,
+    });
   }
 
   @AsHandler([OCPPVersion.OCPP2_1], OCPP_CallAction.ReportDERControl)
@@ -167,6 +182,23 @@ export class DerControlModule extends AbstractModule {
   private _coerceDate(isoLike: string): Date {
     const parsed = new Date(isoLike);
     return Number.isNaN(parsed.getTime()) ? new Date() : parsed;
+  }
+
+  private async _persistResponseEvent(
+    tenantId: number,
+    stationId: string,
+    value: {
+      eventType: string;
+      payload: Record<string, unknown>;
+    },
+  ): Promise<void> {
+    await this._derEventRepository.createEvent(tenantId, {
+      stationId,
+      eventType: value.eventType,
+      controlId: null,
+      payloadJson: value.payload,
+      occurredAt: new Date(),
+    });
   }
 
   private _flattenReportControls(payload: OCPP2_1.ReportDERControlRequest): Array<{

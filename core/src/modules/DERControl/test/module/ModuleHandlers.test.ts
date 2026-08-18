@@ -142,6 +142,79 @@ describe('DerControlModule handlers', () => {
     expect(ackSpy).toHaveBeenCalledTimes(1);
   });
 
+  it('persists SetDERControl responses as DER events', async () => {
+    await (module as any)._handleSetDERControlResponse({
+      context: {
+        tenantId: 2,
+        stationId: 'cs-2',
+      },
+      payload: {
+        status: 'Accepted',
+        supersededIds: ['ctrl-1'],
+      },
+    } as any);
+
+    expect(derEventRepository.createEvent).toHaveBeenCalledWith(
+      2,
+      expect.objectContaining({
+        stationId: 'cs-2',
+        eventType: 'set_der_control_response',
+        controlId: null,
+        payloadJson: expect.objectContaining({
+          status: 'Accepted',
+        }),
+      }),
+    );
+  });
+
+  it('persists GetDERControl responses as DER events', async () => {
+    await (module as any)._handleGetDERControlResponse({
+      context: {
+        tenantId: 3,
+        stationId: 'cs-3',
+      },
+      payload: {
+        status: 'NotFound',
+      },
+    } as any);
+
+    expect(derEventRepository.createEvent).toHaveBeenCalledWith(
+      3,
+      expect.objectContaining({
+        stationId: 'cs-3',
+        eventType: 'get_der_control_response',
+        controlId: null,
+        payloadJson: expect.objectContaining({
+          status: 'NotFound',
+        }),
+      }),
+    );
+  });
+
+  it('persists ClearDERControl responses as DER events', async () => {
+    await (module as any)._handleClearDERControlResponse({
+      context: {
+        tenantId: 4,
+        stationId: 'cs-4',
+      },
+      payload: {
+        status: 'Rejected',
+      },
+    } as any);
+
+    expect(derEventRepository.createEvent).toHaveBeenCalledWith(
+      4,
+      expect.objectContaining({
+        stationId: 'cs-4',
+        eventType: 'clear_der_control_response',
+        controlId: null,
+        payloadJson: expect.objectContaining({
+          status: 'Rejected',
+        }),
+      }),
+    );
+  });
+
   it('persists DER alarm events and acknowledges request', async () => {
     const ackSpy = vi.spyOn(module, 'sendCallResultWithMessage').mockResolvedValue({
       success: true,
