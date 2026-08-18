@@ -247,6 +247,12 @@ export class EmsModule extends AbstractModule {
                       startPeriod: 0,
                       limit: recommendation.limitW,
                       operationMode: recommendation.operationMode as OCPP2_1.OperationModeEnumType,
+                      ...(recommendation.exportAllowed &&
+                      typeof recommendation.dischargeLimitW === 'number'
+                        ? {
+                            dischargeLimit: recommendation.dischargeLimitW,
+                          }
+                        : {}),
                     },
                   ],
                 },
