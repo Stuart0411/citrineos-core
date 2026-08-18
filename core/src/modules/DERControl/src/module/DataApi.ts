@@ -164,6 +164,7 @@ export class DerControlDataApi
       stationId,
       supportedControlType,
       hasDeviceModelSnapshot,
+      summary,
       fromUpdatedAt,
       toUpdatedAt,
       limit,
@@ -212,11 +213,17 @@ export class DerControlDataApi
 
     const boundedLimit = Math.min(Math.max(limit ?? 200, 1), 1000);
 
-    return this._module.stationDerCapabilityRepository.readAllByQuery(tenantId, {
+    const rows = await this._module.stationDerCapabilityRepository.readAllByQuery(tenantId, {
       where,
       order: [['updatedAt', 'DESC']],
       limit: boundedLimit,
     });
+
+    if (!summary) {
+      return rows;
+    }
+
+    return rows.map((row) => this._module.summarizeStationCapability(row.toJSON()));
   }
 
   protected _toDataPath(input: OCPP2_Namespace | OCPP1_6_Namespace | Namespace): string {

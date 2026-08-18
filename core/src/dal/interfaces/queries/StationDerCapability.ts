@@ -24,6 +24,10 @@ export const StationDerCapabilityQuerySchema = QuerySchema('StationDerCapability
     type: 'boolean',
   },
   {
+    key: 'summary',
+    type: 'boolean',
+  },
+  {
     key: 'fromUpdatedAt',
     type: 'string',
   },
@@ -42,6 +46,7 @@ export interface StationDerCapabilityQuerystring {
   stationId?: string;
   supportedControlType?: string;
   hasDeviceModelSnapshot?: boolean;
+  summary?: boolean;
   fromUpdatedAt?: string;
   toUpdatedAt?: string;
   limit?: number;

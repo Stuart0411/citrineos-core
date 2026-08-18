@@ -46,6 +46,14 @@ describe('DerControlDataApi', () => {
       derControlRepository,
       derEventRepository,
       stationDerCapabilityRepository,
+      summarizeStationCapability: vi.fn((value) => ({
+        stationId: value.stationId,
+        requestId: value.requestId,
+        reportedSupportedControlTypes: value.supportedControlTypesJson,
+        inferredSupportedControlTypes: ['Gradients'],
+        hasDeviceModelSnapshot: true,
+        deviceModelAttributeCount: 1,
+      })),
     } as any;
 
     api = new DerControlDataApi(moduleMock, {} as any);
@@ -215,6 +223,45 @@ describe('DerControlDataApi', () => {
     const updatedAtFilter = call.where.updatedAt as Record<symbol, Date>;
     expect(updatedAtFilter[Op.gte]).toEqual(new Date('2026-08-18T05:00:00.000Z'));
     expect(updatedAtFilter[Op.lte]).toEqual(new Date('2026-08-18T06:00:00.000Z'));
+  });
+
+  it('returns summarized station DER capability rows when summary=true', async () => {
+    stationDerCapabilityRepository.readAllByQuery.mockResolvedValue([
+      {
+        toJSON: () => ({
+          stationId: 'cs-14',
+          requestId: 114,
+          updatedAt: '2026-08-18T08:00:00.000Z',
+          supportedControlTypesJson: [],
+          deviceModelSnapshotJson: {
+            sampledAttributeCount: 1,
+            attributes: [
+              {
+                variableName: 'GradientRampRate',
+              },
+            ],
+          },
+        }),
+      },
+    ]);
+
+    const result = await api.getStationDerCapabilities({
+      query: {
+        tenantId: 14,
+        summary: true,
+      },
+    } as any);
+
+    expect(result).toEqual([
+      expect.objectContaining({
+        stationId: 'cs-14',
+        requestId: 114,
+        reportedSupportedControlTypes: [],
+        inferredSupportedControlTypes: ['Gradients'],
+        hasDeviceModelSnapshot: true,
+        deviceModelAttributeCount: 1,
+      }),
+    ]);
   });
 
   it('throws BadRequestError for invalid station DER capability date windows', async () => {

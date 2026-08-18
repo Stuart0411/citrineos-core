@@ -150,6 +150,14 @@ describe('DerControlModule handlers', () => {
         variableId: 14,
         componentId: 7,
         evseDatabaseId: 3,
+        variable: {
+          name: 'VoltVarCurve',
+          instance: 'A',
+        },
+        component: {
+          name: 'DERController',
+          instance: 'Main',
+        },
       },
     ]);
 
@@ -210,6 +218,8 @@ describe('DerControlModule handlers', () => {
               value: 'Enabled',
               variableId: 14,
               componentId: 7,
+              variableName: 'VoltVarCurve',
+              componentName: 'DERController',
             }),
           ],
         }),
@@ -580,5 +590,36 @@ describe('DerControlModule handlers', () => {
         12,
       ),
     ).rejects.toThrow('Station cs-12 does not report support for DER control type(s): Gradients');
+  });
+
+  it('uses inferred device-model support when a station has no reported DER control types yet', async () => {
+    stationDerCapabilityRepository.readOnlyOneByQuery.mockResolvedValue({
+      stationId: 'cs-13',
+      supportedControlTypesJson: [],
+      deviceModelSnapshotJson: {
+        sampledAttributeCount: 1,
+        attributes: [
+          {
+            variableName: 'GradientRampRate',
+            componentName: 'DERController',
+          },
+        ],
+      },
+    });
+
+    await expect(
+      module.validateOutboundSetDERControlRequest(
+        ['cs-13'],
+        {
+          controlId: 'ctrl-13',
+          controlType: 'Gradients',
+          isDefault: false,
+          gradient: {
+            gradient: 20,
+          },
+        } as any,
+        13,
+      ),
+    ).resolves.toBeUndefined();
   });
 });

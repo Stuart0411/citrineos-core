@@ -154,11 +154,15 @@ export class DerControlModule extends AbstractModule {
       const supportedTypes = Array.isArray(capability?.supportedControlTypesJson)
         ? capability.supportedControlTypesJson
         : [];
-      if (supportedTypes.length === 0) {
+      const inferredTypes = this._inferSupportedTypesFromDeviceModelSnapshot(
+        capability?.deviceModelSnapshotJson as Record<string, unknown> | null | undefined,
+      );
+      const effectiveSupportedTypes = supportedTypes.length > 0 ? supportedTypes : inferredTypes;
+      if (effectiveSupportedTypes.length === 0) {
         continue;
       }
 
-      const supportedTypeSet = new Set(supportedTypes.map((value) => value.toLowerCase()));
+      const supportedTypeSet = new Set(effectiveSupportedTypes.map((value) => value.toLowerCase()));
       const unsupportedTypes = requestedTypes.filter(
         (controlType) => !supportedTypeSet.has(controlType.toLowerCase()),
       );
@@ -529,6 +533,8 @@ export class DerControlModule extends AbstractModule {
       snapshotJson: {
         ...snapshot,
         rawReport: payload as unknown as Record<string, unknown>,
+        inferredSupportedControlTypesFromDeviceModel:
+          this._inferSupportedTypesFromDeviceModelSnapshot(deviceModelSnapshotJson),
       },
       requestId: payload.requestId,
       tbc: payload.tbc ?? false,
@@ -556,6 +562,8 @@ export class DerControlModule extends AbstractModule {
       sampledAttributeCount: rows.length,
       attributes: rows.map((row) => {
         const item = row as unknown as Record<string, unknown>;
+        const variable = item.variable as Record<string, unknown> | undefined;
+        const component = item.component as Record<string, unknown> | undefined;
 
         return {
           type: typeof item.type === 'string' ? item.type : null,
@@ -565,9 +573,79 @@ export class DerControlModule extends AbstractModule {
           variableId: typeof item.variableId === 'number' ? item.variableId : null,
           componentId: typeof item.componentId === 'number' ? item.componentId : null,
           evseDatabaseId: typeof item.evseDatabaseId === 'number' ? item.evseDatabaseId : null,
+          variableName: typeof variable?.name === 'string' ? variable.name : null,
+          variableInstance: typeof variable?.instance === 'string' ? variable.instance : null,
+          componentName: typeof component?.name === 'string' ? component.name : null,
+          componentInstance: typeof component?.instance === 'string' ? component.instance : null,
         };
       }),
     };
+  }
+
+  summarizeStationCapability(input: Record<string, unknown>): Record<string, unknown> {
+    const supportedControlTypesJson = Array.isArray(input.supportedControlTypesJson)
+      ? input.supportedControlTypesJson.filter(
+          (value): value is string => typeof value === 'string',
+        )
+      : [];
+    const deviceModelSnapshotJson =
+      input.deviceModelSnapshotJson && typeof input.deviceModelSnapshotJson === 'object'
+        ? (input.deviceModelSnapshotJson as Record<string, unknown>)
+        : null;
+
+    return {
+      stationId: input.stationId ?? null,
+      transactionCountHint: null,
+      requestId: input.requestId ?? null,
+      updatedAt: input.updatedAt ?? null,
+      reportedSupportedControlTypes: supportedControlTypesJson,
+      inferredSupportedControlTypes:
+        this._inferSupportedTypesFromDeviceModelSnapshot(deviceModelSnapshotJson),
+      hasDeviceModelSnapshot: deviceModelSnapshotJson !== null,
+      deviceModelAttributeCount:
+        typeof deviceModelSnapshotJson?.sampledAttributeCount === 'number'
+          ? deviceModelSnapshotJson.sampledAttributeCount
+          : 0,
+    };
+  }
+
+  private _inferSupportedTypesFromDeviceModelSnapshot(
+    snapshot: Record<string, unknown> | null | undefined,
+  ): string[] {
+    const attributes = Array.isArray(snapshot?.attributes)
+      ? (snapshot.attributes as Array<Record<string, unknown>>)
+      : [];
+    if (attributes.length === 0) {
+      return [];
+    }
+
+    const mapping: Array<[string, RegExp[]]> = [
+      ['Curve', [/curve/i, /voltvar/i, /voltwatt/i, /freqwatt/i, /wattvar/i, /wattpf/i]],
+      ['EnterService', [/enter.?service/i]],
+      ['FixedPFAbsorb', [/fixed.?pf.?absorb/i, /pf.?absorb/i]],
+      ['FixedPFInject', [/fixed.?pf.?inject/i, /pf.?inject/i]],
+      ['FixedVar', [/fixed.?var/i]],
+      ['FreqDroop', [/freq.?droop/i]],
+      ['Gradients', [/gradient/i, /ramp/i]],
+      ['LimitMaxDischarge', [/limit.?max.?discharge/i, /max.?discharge/i]],
+    ];
+
+    const haystack = attributes
+      .flatMap((attribute) => [
+        attribute.variableName,
+        attribute.variableInstance,
+        attribute.componentName,
+        attribute.componentInstance,
+        attribute.value,
+      ])
+      .filter((value): value is string => typeof value === 'string')
+      .join(' ');
+
+    const inferredTypes = mapping
+      .filter(([, patterns]) => patterns.some((pattern) => pattern.test(haystack)))
+      .map(([controlType]) => controlType);
+
+    return Array.from(new Set(inferredTypes));
   }
 
   private _flattenReportControls(payload: OCPP2_1.ReportDERControlRequest): Array<{
