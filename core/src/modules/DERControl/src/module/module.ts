@@ -16,6 +16,7 @@ import type {
 import {
   AbstractModule,
   AsHandler,
+  BadRequestError,
   EventGroup,
   OCPP_CallAction,
   OCPPValidator,
@@ -41,6 +42,17 @@ import { Logger } from 'tslog';
  * so DER handlers can be added incrementally in follow-up slices.
  */
 export class DerControlModule extends AbstractModule {
+  private static readonly DEFAULT_SUPPORTED_CONTROL_TYPES: string[] = [
+    'Curve',
+    'EnterService',
+    'FixedPFAbsorb',
+    'FixedPFInject',
+    'FixedVar',
+    'FreqDroop',
+    'Gradients',
+    'LimitMaxDischarge',
+  ];
+
   _requests: CallAction[] = [];
   _responses: CallAction[] = [];
   protected _derControlRepository: IDerControlRepository;
@@ -76,6 +88,38 @@ export class DerControlModule extends AbstractModule {
 
   get derEventRepository(): IDerEventRepository {
     return this._derEventRepository;
+  }
+
+  validateSetDERControlRequest(request: OCPP2_1.SetDERControlRequest): void {
+    const policy = this.config.modules.dercontrol?.policy;
+    const enforceSupportedControlTypes = policy?.enforceSupportedControlTypes ?? false;
+    if (!enforceSupportedControlTypes) {
+      return;
+    }
+
+    const supportedTypes = new Set(
+      (policy?.supportedControlTypes ?? DerControlModule.DEFAULT_SUPPORTED_CONTROL_TYPES).map(
+        (value: string) => value.toLowerCase(),
+      ),
+    );
+
+    const requestedTypes = this._collectRequestedControlTypesFromSet(request);
+    const unsupportedTypes = requestedTypes.filter(
+      (controlType) => !supportedTypes.has(controlType.toLowerCase()),
+    );
+    if (unsupportedTypes.length > 0) {
+      throw new BadRequestError(
+        `Unsupported DER control type(s) requested: ${unsupportedTypes.join(', ')}`,
+      );
+    }
+  }
+
+  validateClearDERControlRequest(request: OCPP2_1.ClearDERControlRequest): void {
+    const requireSelector =
+      this.config.modules.dercontrol?.policy?.requireExplicitControlSelectorOnClear ?? true;
+    if (requireSelector && !request.controlId && !request.controlType) {
+      throw new BadRequestError('ClearDERControl requires controlId or controlType');
+    }
   }
 
   @AsHandler([OCPPVersion.OCPP2_1], OCPP_CallAction.SetDERControl)
@@ -156,6 +200,14 @@ export class DerControlModule extends AbstractModule {
         control,
       );
     }
+
+    await this._derEventRepository.createEvent(message.context.tenantId, {
+      stationId: message.context.stationId,
+      eventType: 'report_der_capability_snapshot',
+      controlId: null,
+      payloadJson: this._buildCapabilitySnapshotPayload(message.payload),
+      occurredAt: new Date(),
+    });
 
     await this.sendCallResultWithMessage(message, {} as OCPP2_1.ReportDERControlResponse);
   }
@@ -348,6 +400,49 @@ export class DerControlModule extends AbstractModule {
       return 'cleared';
     }
     return normalized;
+  }
+
+  private _collectRequestedControlTypesFromSet(request: OCPP2_1.SetDERControlRequest): string[] {
+    if (typeof request.controlType === 'string' && request.controlType.length > 0) {
+      return [request.controlType];
+    }
+
+    const fallbackTypeByKey: Record<string, string> = {
+      curve: 'Curve',
+      enterService: 'EnterService',
+      fixedPFAbsorb: 'FixedPFAbsorb',
+      fixedPFInject: 'FixedPFInject',
+      fixedVar: 'FixedVar',
+      freqDroop: 'FreqDroop',
+      gradient: 'Gradients',
+      limitMaxDischarge: 'LimitMaxDischarge',
+    };
+
+    const requestShape = request as unknown as Record<string, unknown>;
+    for (const [key, fallbackType] of Object.entries(fallbackTypeByKey)) {
+      if (requestShape[key] !== undefined && requestShape[key] !== null) {
+        return [fallbackType];
+      }
+    }
+
+    return [];
+  }
+
+  private _buildCapabilitySnapshotPayload(
+    payload: OCPP2_1.ReportDERControlRequest,
+  ): Record<string, unknown> {
+    const controls = this._flattenReportControls(payload);
+    const supportedControlTypes = Array.from(
+      new Set(controls.map((control) => control.controlType)),
+    );
+
+    return {
+      requestId: payload.requestId,
+      tbc: payload.tbc ?? false,
+      supportedControlTypes,
+      supportedControlCount: supportedControlTypes.length,
+      recordedControlCount: controls.length,
+    };
   }
 
   private _flattenReportControls(payload: OCPP2_1.ReportDERControlRequest): Array<{

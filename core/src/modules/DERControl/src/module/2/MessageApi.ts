@@ -49,6 +49,8 @@ export class DerControlOcpp2Api
     callbackUrl?: string,
     tenantId: number = DEFAULT_TENANT_ID,
   ): Promise<IMessageConfirmation[]> {
+    this._module.validateSetDERControlRequest(request);
+
     return packageGroupCall(
       this._module,
       identifier,
@@ -95,6 +97,8 @@ export class DerControlOcpp2Api
     callbackUrl?: string,
     tenantId: number = DEFAULT_TENANT_ID,
   ): Promise<IMessageConfirmation[]> {
+    this._module.validateClearDERControlRequest(request);
+
     return packageGroupCall(
       this._module,
       identifier,

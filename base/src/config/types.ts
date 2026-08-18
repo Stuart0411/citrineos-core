@@ -132,6 +132,13 @@ export const systemConfigInputSchema = z.object({
         port: z.number().int().min(1).default(8081).optional(),
         requests: z.array(CallActionSchema).default([]).optional(),
         responses: z.array(CallActionSchema).default([]).optional(),
+        policy: z
+          .object({
+            enforceSupportedControlTypes: z.boolean().default(false).optional(),
+            supportedControlTypes: z.array(z.string()).optional(),
+            requireExplicitControlSelectorOnClear: z.boolean().default(true).optional(),
+          })
+          .optional(),
       })
       .optional(),
     evdriver: z.object({
@@ -429,6 +436,13 @@ export const systemConfigSchema = z
           port: z.number().int().min(1).optional(),
           requests: z.array(CallActionSchema),
           responses: z.array(CallActionSchema),
+          policy: z
+            .object({
+              enforceSupportedControlTypes: z.boolean().optional(),
+              supportedControlTypes: z.array(z.string()).optional(),
+              requireExplicitControlSelectorOnClear: z.boolean().optional(),
+            })
+            .optional(),
         })
         .optional(),
       evdriver: z.object({

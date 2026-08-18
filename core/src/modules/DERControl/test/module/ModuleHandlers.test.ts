@@ -151,6 +151,19 @@ describe('DerControlModule handlers', () => {
         durationSeconds: 15,
       }),
     );
+    expect(derEventRepository.createEvent).toHaveBeenCalledWith(
+      1,
+      expect.objectContaining({
+        stationId: 'cs-1',
+        eventType: 'report_der_capability_snapshot',
+        controlId: null,
+        payloadJson: expect.objectContaining({
+          supportedControlTypes: ['Curve', 'Gradients'],
+          supportedControlCount: 2,
+          recordedControlCount: 2,
+        }),
+      }),
+    );
     expect(ackSpy).toHaveBeenCalledTimes(1);
   });
 
@@ -432,5 +445,65 @@ describe('DerControlModule handlers', () => {
       false,
     );
     expect(derControlRepository.markSupersededByControlId).not.toHaveBeenCalled();
+  });
+
+  it('rejects unsupported SetDERControl controlType when policy enforcement is enabled', () => {
+    module = new DerControlModule(
+      {
+        env: 'test',
+        logLevel: 3,
+        maxCachingSeconds: 60,
+        modules: {
+          dercontrol: {
+            requests: [],
+            responses: [],
+            policy: {
+              enforceSupportedControlTypes: true,
+              supportedControlTypes: ['Gradients'],
+            },
+          },
+        },
+      } as any,
+      {
+        get: vi.fn(),
+        set: vi.fn(),
+      } as any,
+      {
+        sendRequest: vi.fn(),
+        sendResponse: vi.fn(),
+        shutdown: vi.fn(),
+      } as any,
+      {
+        module: null,
+        subscribe: vi.fn().mockResolvedValue(true),
+        shutdown: vi.fn(),
+      } as any,
+      new Logger({ name: 'DerControlModuleTest', minLevel: 7 }),
+      undefined,
+      derControlRepository as any,
+      derEventRepository as any,
+      ocppMessageRepository as any,
+    );
+
+    expect(() =>
+      module.validateSetDERControlRequest({
+        controlId: 'ctrl-1',
+        controlType: 'FreqWatt',
+        isDefault: true,
+        curve: {
+          priority: 0,
+          yUnit: 'PctMaxW',
+          curveData: [{ x: 0, y: 0 }],
+        },
+      } as any),
+    ).toThrow('Unsupported DER control type(s) requested: FreqWatt');
+  });
+
+  it('rejects ClearDERControl when request has no control selector', () => {
+    expect(() =>
+      module.validateClearDERControlRequest({
+        isDefault: false,
+      } as any),
+    ).toThrow('ClearDERControl requires controlId or controlType');
   });
 });
