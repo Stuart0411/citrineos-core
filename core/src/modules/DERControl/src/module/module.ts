@@ -21,10 +21,15 @@ import {
   OCPPValidator,
   OCPPVersion,
 } from '@citrineos/base';
-import type { IDerControlRepository, IDerEventRepository } from '@dal/interfaces/repositories.js';
+import type {
+  IDerControlRepository,
+  IDerEventRepository,
+  IOCPPMessageRepository,
+} from '@dal/interfaces/repositories.js';
 import {
   SequelizeDerControlRepository,
   SequelizeDerEventRepository,
+  SequelizeOCPPMessageRepository,
 } from '@dal/layers/sequelize/index.js';
 import type { ILogObj } from 'tslog';
 import { Logger } from 'tslog';
@@ -40,6 +45,7 @@ export class DerControlModule extends AbstractModule {
   _responses: CallAction[] = [];
   protected _derControlRepository: IDerControlRepository;
   protected _derEventRepository: IDerEventRepository;
+  protected _ocppMessageRepository: IOCPPMessageRepository;
 
   constructor(
     config: BootstrapConfig & SystemConfig,
@@ -50,6 +56,7 @@ export class DerControlModule extends AbstractModule {
     ocppValidator?: OCPPValidator,
     derControlRepository?: IDerControlRepository,
     derEventRepository?: IDerEventRepository,
+    ocppMessageRepository?: IOCPPMessageRepository,
   ) {
     super(config, cache, handler, sender, EventGroup.DerControl, logger, ocppValidator);
 
@@ -59,6 +66,8 @@ export class DerControlModule extends AbstractModule {
       derControlRepository || new SequelizeDerControlRepository(config, logger);
     this._derEventRepository =
       derEventRepository || new SequelizeDerEventRepository(config, logger);
+    this._ocppMessageRepository =
+      ocppMessageRepository || new SequelizeOCPPMessageRepository(config, logger);
   }
 
   get derControlRepository(): IDerControlRepository {
@@ -80,6 +89,14 @@ export class DerControlModule extends AbstractModule {
       eventType: 'set_der_control_response',
       payload: message.payload as unknown as Record<string, unknown>,
     });
+
+    await this._reconcileResponseStatus(
+      message.context.tenantId,
+      message.context.stationId,
+      message.context.correlationId,
+      OCPP_CallAction.SetDERControl,
+      message.payload as unknown as Record<string, unknown>,
+    );
   }
 
   @AsHandler([OCPPVersion.OCPP2_1], OCPP_CallAction.GetDERControl)
@@ -93,6 +110,14 @@ export class DerControlModule extends AbstractModule {
       eventType: 'get_der_control_response',
       payload: message.payload as unknown as Record<string, unknown>,
     });
+
+    await this._reconcileResponseStatus(
+      message.context.tenantId,
+      message.context.stationId,
+      message.context.correlationId,
+      OCPP_CallAction.GetDERControl,
+      message.payload as unknown as Record<string, unknown>,
+    );
   }
 
   @AsHandler([OCPPVersion.OCPP2_1], OCPP_CallAction.ClearDERControl)
@@ -106,6 +131,14 @@ export class DerControlModule extends AbstractModule {
       eventType: 'clear_der_control_response',
       payload: message.payload as unknown as Record<string, unknown>,
     });
+
+    await this._reconcileResponseStatus(
+      message.context.tenantId,
+      message.context.stationId,
+      message.context.correlationId,
+      OCPP_CallAction.ClearDERControl,
+      message.payload as unknown as Record<string, unknown>,
+    );
   }
 
   @AsHandler([OCPPVersion.OCPP2_1], OCPP_CallAction.ReportDERControl)
@@ -199,6 +232,93 @@ export class DerControlModule extends AbstractModule {
       payloadJson: value.payload,
       occurredAt: new Date(),
     });
+  }
+
+  private async _reconcileResponseStatus(
+    tenantId: number,
+    stationId: string,
+    correlationId: string | undefined,
+    action: OCPP_CallAction,
+    responsePayload: Record<string, unknown>,
+  ): Promise<void> {
+    if (!correlationId) {
+      return;
+    }
+
+    const request = await this._ocppMessageRepository.getRequestByCorrelationId(
+      tenantId,
+      correlationId,
+    );
+    if (!request) {
+      return;
+    }
+
+    const requestPayload = this._extractRequestPayload(request.message);
+    const controlId =
+      requestPayload && typeof requestPayload.controlId === 'string'
+        ? requestPayload.controlId
+        : undefined;
+    if (!controlId) {
+      return;
+    }
+
+    const status = this._mapResponseStatus(action, responsePayload.status);
+    if (status) {
+      await this._derControlRepository.updateStatusByControlId(
+        tenantId,
+        stationId,
+        controlId,
+        status,
+      );
+    }
+
+    if (
+      action === OCPP_CallAction.SetDERControl &&
+      status === 'accepted' &&
+      Array.isArray(responsePayload.supersededIds)
+    ) {
+      const supersededIds = responsePayload.supersededIds.filter(
+        (value): value is string => typeof value === 'string',
+      );
+      if (supersededIds.length > 0) {
+        await this._derControlRepository.markSupersededByControlId(
+          tenantId,
+          stationId,
+          supersededIds,
+          controlId,
+        );
+      }
+    }
+  }
+
+  private _extractRequestPayload(rawMessage: unknown): Record<string, unknown> | undefined {
+    if (Array.isArray(rawMessage) && rawMessage.length >= 4) {
+      const payload = rawMessage[3];
+      if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
+        return payload as Record<string, unknown>;
+      }
+    }
+
+    if (rawMessage && typeof rawMessage === 'object' && !Array.isArray(rawMessage)) {
+      const payload = (rawMessage as Record<string, unknown>).payload;
+      if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
+        return payload as Record<string, unknown>;
+      }
+    }
+
+    return undefined;
+  }
+
+  private _mapResponseStatus(action: OCPP_CallAction, rawStatus: unknown): string | undefined {
+    if (typeof rawStatus !== 'string') {
+      return undefined;
+    }
+
+    const normalized = rawStatus.toLowerCase();
+    if (action === OCPP_CallAction.ClearDERControl && normalized === 'accepted') {
+      return 'cleared';
+    }
+    return normalized;
   }
 
   private _flattenReportControls(payload: OCPP2_1.ReportDERControlRequest): Array<{

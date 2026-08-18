@@ -357,6 +357,13 @@ export interface IDerControlRepository extends CrudRepository<DerControl> {
     supersededIds: string[],
     supersededByControlId: string,
   ): Promise<void>;
+
+  updateStatusByControlId(
+    tenantId: number,
+    stationId: string,
+    controlId: string,
+    status: string,
+  ): Promise<void>;
 }
 
 export interface IDerEventRepository extends CrudRepository<DerEvent> {

@@ -15,6 +15,9 @@ describe('DerControlModule handlers', () => {
   let derEventRepository: {
     createEvent: ReturnType<typeof vi.fn>;
   };
+  let ocppMessageRepository: {
+    getRequestByCorrelationId: ReturnType<typeof vi.fn>;
+  };
   let module: DerControlModule;
 
   beforeEach(() => {
@@ -24,10 +27,15 @@ describe('DerControlModule handlers', () => {
       upsertFromReport: vi.fn().mockResolvedValue(undefined),
       updateStartStopState: vi.fn().mockResolvedValue(undefined),
       markSupersededByControlId: vi.fn().mockResolvedValue(undefined),
+      updateStatusByControlId: vi.fn().mockResolvedValue(undefined),
     };
 
     derEventRepository = {
       createEvent: vi.fn().mockResolvedValue(undefined),
+    };
+
+    ocppMessageRepository = {
+      getRequestByCorrelationId: vi.fn().mockResolvedValue(undefined),
     };
 
     module = new DerControlModule(
@@ -60,6 +68,7 @@ describe('DerControlModule handlers', () => {
       undefined,
       derControlRepository as any,
       derEventRepository as any,
+      ocppMessageRepository as any,
     );
   });
 
@@ -143,10 +152,15 @@ describe('DerControlModule handlers', () => {
   });
 
   it('persists SetDERControl responses as DER events', async () => {
+    ocppMessageRepository.getRequestByCorrelationId.mockResolvedValue({
+      message: [2, 'corr-set-1', 'SetDERControl', { controlId: 'ctrl-new' }],
+    });
+
     await (module as any)._handleSetDERControlResponse({
       context: {
         tenantId: 2,
         stationId: 'cs-2',
+        correlationId: 'corr-set-1',
       },
       payload: {
         status: 'Accepted',
@@ -165,13 +179,30 @@ describe('DerControlModule handlers', () => {
         }),
       }),
     );
+    expect(derControlRepository.updateStatusByControlId).toHaveBeenCalledWith(
+      2,
+      'cs-2',
+      'ctrl-new',
+      'accepted',
+    );
+    expect(derControlRepository.markSupersededByControlId).toHaveBeenCalledWith(
+      2,
+      'cs-2',
+      ['ctrl-1'],
+      'ctrl-new',
+    );
   });
 
   it('persists GetDERControl responses as DER events', async () => {
+    ocppMessageRepository.getRequestByCorrelationId.mockResolvedValue({
+      message: [2, 'corr-get-1', 'GetDERControl', { controlId: 'ctrl-get-1' }],
+    });
+
     await (module as any)._handleGetDERControlResponse({
       context: {
         tenantId: 3,
         stationId: 'cs-3',
+        correlationId: 'corr-get-1',
       },
       payload: {
         status: 'NotFound',
@@ -189,13 +220,24 @@ describe('DerControlModule handlers', () => {
         }),
       }),
     );
+    expect(derControlRepository.updateStatusByControlId).toHaveBeenCalledWith(
+      3,
+      'cs-3',
+      'ctrl-get-1',
+      'notfound',
+    );
   });
 
   it('persists ClearDERControl responses as DER events', async () => {
+    ocppMessageRepository.getRequestByCorrelationId.mockResolvedValue({
+      message: [2, 'corr-clear-1', 'ClearDERControl', { controlId: 'ctrl-clear-1' }],
+    });
+
     await (module as any)._handleClearDERControlResponse({
       context: {
         tenantId: 4,
         stationId: 'cs-4',
+        correlationId: 'corr-clear-1',
       },
       payload: {
         status: 'Rejected',
@@ -213,6 +255,55 @@ describe('DerControlModule handlers', () => {
         }),
       }),
     );
+    expect(derControlRepository.updateStatusByControlId).toHaveBeenCalledWith(
+      4,
+      'cs-4',
+      'ctrl-clear-1',
+      'rejected',
+    );
+  });
+
+  it('maps clear accepted status to cleared when controlId can be correlated', async () => {
+    ocppMessageRepository.getRequestByCorrelationId.mockResolvedValue({
+      message: [2, 'corr-clear-2', 'ClearDERControl', { controlId: 'ctrl-clear-2' }],
+    });
+
+    await (module as any)._handleClearDERControlResponse({
+      context: {
+        tenantId: 4,
+        stationId: 'cs-4',
+        correlationId: 'corr-clear-2',
+      },
+      payload: {
+        status: 'Accepted',
+      },
+    } as any);
+
+    expect(derControlRepository.updateStatusByControlId).toHaveBeenCalledWith(
+      4,
+      'cs-4',
+      'ctrl-clear-2',
+      'cleared',
+    );
+  });
+
+  it('skips status updates when correlation request does not expose a controlId', async () => {
+    ocppMessageRepository.getRequestByCorrelationId.mockResolvedValue({
+      message: [2, 'corr-set-2', 'SetDERControl', { controlType: 'Curve' }],
+    });
+
+    await (module as any)._handleSetDERControlResponse({
+      context: {
+        tenantId: 9,
+        stationId: 'cs-9',
+        correlationId: 'corr-set-2',
+      },
+      payload: {
+        status: 'Accepted',
+      },
+    } as any);
+
+    expect(derControlRepository.updateStatusByControlId).not.toHaveBeenCalled();
   });
 
   it('persists DER alarm events and acknowledges request', async () => {

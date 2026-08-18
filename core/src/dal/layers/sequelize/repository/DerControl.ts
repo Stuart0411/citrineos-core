@@ -100,4 +100,24 @@ export class SequelizeDerControlRepository
       },
     );
   }
+
+  async updateStatusByControlId(
+    tenantId: number,
+    stationId: string,
+    controlId: string,
+    status: string,
+  ): Promise<void> {
+    await DerControl.update(
+      {
+        status,
+      },
+      {
+        where: {
+          tenantId,
+          stationId,
+          controlId,
+        },
+      },
+    );
+  }
 }

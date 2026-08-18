@@ -108,6 +108,26 @@ describe('DER Sequelize repositories', () => {
     expect(controlIdFilter[Op.in]).toEqual(['ctrl-a', 'ctrl-b']);
   });
 
+  it('updateStatusByControlId updates status for a single control row', async () => {
+    const updateSpy = vi.spyOn(DerControl, 'update').mockResolvedValue([1]);
+    const repository = new SequelizeDerControlRepository({} as any, undefined, {} as any);
+
+    await repository.updateStatusByControlId(6, 'cs-6', 'ctrl-6', 'accepted');
+
+    expect(updateSpy).toHaveBeenCalledWith(
+      {
+        status: 'accepted',
+      },
+      {
+        where: {
+          tenantId: 6,
+          stationId: 'cs-6',
+          controlId: 'ctrl-6',
+        },
+      },
+    );
+  });
+
   it('createEvent builds a DER event and delegates to base create', async () => {
     const builtEvent = { id: 7 } as any;
     const createdEvent = { id: 7, created: true } as any;
