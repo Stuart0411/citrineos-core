@@ -18,3 +18,4 @@ export * from '@modules/Reporting/src/index.js';
 export * from '@modules/SmartCharging/src/index.js';
 export * from '@modules/Tenant/src/index.js';
 export * from '@modules/Transactions/src/index.js';
+export * from '@modules/V2X/src/index.js';

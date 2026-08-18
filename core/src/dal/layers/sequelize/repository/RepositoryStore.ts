@@ -15,6 +15,7 @@ import type {
   IDeviceModelRepository,
   IEmsSiteIntentRepository,
   IStationDerCapabilityRepository,
+  IStationEnergyTransferPolicyRepository,
   IInstallCertificateAttemptRepository,
   IInstalledCertificateRepository,
   ILocalAuthListRepository,
@@ -65,6 +66,7 @@ import { SequelizeDerEventRepository } from './DerEvent.js';
 import { SequelizeEmsDecisionRepository } from './EmsDecision.js';
 import { SequelizeEmsSiteIntentRepository } from './EmsSiteIntent.js';
 import { SequelizeStationDerCapabilityRepository } from './StationDerCapability.js';
+import { SequelizeStationEnergyTransferPolicyRepository } from './StationEnergyTransferPolicy.js';
 
 export class RepositoryStore {
   sequelizeInstance: Sequelize;
@@ -77,6 +79,7 @@ export class RepositoryStore {
   derControlRepository: IDerControlRepository;
   derEventRepository: IDerEventRepository;
   stationDerCapabilityRepository: IStationDerCapabilityRepository;
+  stationEnergyTransferPolicyRepository: IStationEnergyTransferPolicyRepository;
   emsDecisionRepository: IEmsDecisionRepository;
   emsSiteIntentRepository: IEmsSiteIntentRepository;
   changeConfigurationRepository: IChangeConfigurationRepository;
@@ -132,6 +135,11 @@ export class RepositoryStore {
     );
     this.derEventRepository = new SequelizeDerEventRepository(config, logger, sequelizeInstance);
     this.stationDerCapabilityRepository = new SequelizeStationDerCapabilityRepository(
+      config,
+      logger,
+      sequelizeInstance,
+    );
+    this.stationEnergyTransferPolicyRepository = new SequelizeStationEnergyTransferPolicyRepository(
       config,
       logger,
       sequelizeInstance,

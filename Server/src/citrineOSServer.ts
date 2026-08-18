@@ -80,6 +80,9 @@ import {
   TransactionsDataApi,
   TransactionsModule,
   TransactionsOcpp2Api,
+  V2XDataApi,
+  V2XModule,
+  V2XOcpp2Api,
   UnknownStationFilter,
   WebhookDispatcher,
   WebsocketNetworkConnection,
@@ -480,6 +483,10 @@ export class CitrineOSServer {
       await this.initTransactionsModule();
     }
 
+    if (this._config.modules.v2x) {
+      await this.initV2XModule();
+    }
+
     if (this._config.modules.tenant) {
       await this.initTenantModule();
     }
@@ -727,6 +734,23 @@ export class CitrineOSServer {
     this._logger.info('Tenant module initialized');
   }
 
+  protected async initV2XModule() {
+    const module = new V2XModule(
+      this._config,
+      this._cache,
+      this._createSender(),
+      this._createHandler(),
+      this._logger,
+      this._ocppValidator,
+      this._repositoryStore.stationEnergyTransferPolicyRepository,
+    );
+    await this.initHandlersAndAddModule(module);
+    this.apis.push(
+      new V2XOcpp2Api(module, this._server, OCPPVersion.OCPP2_1, this._logger),
+      new V2XDataApi(module, this._server, this._logger),
+    );
+  }
+
   protected async initModule(eventGroup = this.eventGroup) {
     this._logger.info(`Initializing module: ${this.appName}`);
     switch (eventGroup) {
@@ -756,6 +780,9 @@ export class CitrineOSServer {
         break;
       case EventGroup.Transactions:
         await this.initTransactionsModule();
+        break;
+      case EventGroup.V2x:
+        await this.initV2XModule();
         break;
       case EventGroup.Tenant:
         await this.initTenantModule();

@@ -36,6 +36,7 @@ export enum EventGroup {
   SmartCharging = 'smartcharging',
   Tenant = 'tenant',
   Transactions = 'transactions',
+  V2x = 'v2x',
   Cdrs = 'cdrs',
   ChargingProfiles = 'chargingprofiles',
   Commands = 'commands',

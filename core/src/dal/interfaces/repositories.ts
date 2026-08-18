@@ -44,6 +44,7 @@ import type { DerEvent } from '../layers/sequelize/model/DerEvent.js';
 import type { EmsDecision } from '../layers/sequelize/model/EmsDecision.js';
 import type { EmsSiteIntent } from '../layers/sequelize/model/EmsSiteIntent.js';
 import type { StationDerCapability } from '../layers/sequelize/model/StationDerCapability.js';
+import type { StationEnergyTransferPolicy } from '../layers/sequelize/model/StationEnergyTransferPolicy.js';
 import type {
   ChargingNeeds,
   ChargingProfile,
@@ -400,6 +401,20 @@ export interface IStationDerCapabilityRepository extends CrudRepository<StationD
       requestId: number;
       tbc: boolean;
       deviceModelSnapshotJson?: Record<string, unknown> | null;
+    },
+  ): Promise<void>;
+}
+
+export interface IStationEnergyTransferPolicyRepository
+  extends CrudRepository<StationEnergyTransferPolicy> {
+  upsertAllowedEnergyTransfer(
+    tenantId: number,
+    stationId: string,
+    value: {
+      transactionId: string;
+      allowedModesJson: string[];
+      exportEnabled: boolean;
+      dischargeLimitW?: number | null;
     },
   ): Promise<void>;
 }

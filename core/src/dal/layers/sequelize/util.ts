@@ -28,6 +28,7 @@ import { DerEvent } from './model/DerEvent.js';
 import { EmsDecision } from './model/EmsDecision.js';
 import { EmsSiteIntent } from './model/EmsSiteIntent.js';
 import { StationDerCapability } from './model/StationDerCapability.js';
+import { StationEnergyTransferPolicy } from './model/StationEnergyTransferPolicy.js';
 import { EventData } from './model/VariableMonitoring/EventData.js';
 import { Evse } from './model/Location/Evse.js';
 import { EvseType } from './model/DeviceModel/EvseType.js';
@@ -158,6 +159,7 @@ export class DefaultSequelizeInstance {
         EmsDecision,
         EmsSiteIntent,
         StationDerCapability,
+        StationEnergyTransferPolicy,
         ChangeConfiguration,
         ChargingNeeds,
         ChargingProfile,

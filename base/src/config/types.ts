@@ -218,6 +218,15 @@ export const systemConfigInputSchema = z.object({
         ocppRouterBaseUrl: z.string().optional(),
       })
       .optional(),
+    v2x: z
+      .object({
+        endpointPrefix: z.string().default(EventGroup.V2x).optional(),
+        host: z.string().default('localhost').optional(),
+        port: z.number().int().min(1).default(8081).optional(),
+        requests: z.array(CallActionSchema).default([]).optional(),
+        responses: z.array(CallActionSchema).default([]).optional(),
+      })
+      .optional(),
     transactions: z.object({
       endpointPrefix: z.string().default(EventGroup.Transactions).optional(),
       requests: z.array(CallActionSchema),
@@ -566,6 +575,15 @@ export const systemConfigSchema = z
         responses: z.array(CallActionSchema),
         ocppRouterBaseUrl: z.string().optional(),
       }),
+      v2x: z
+        .object({
+          endpointPrefix: z.string(),
+          host: z.string().optional(),
+          port: z.number().int().min(1).optional(),
+          requests: z.array(CallActionSchema),
+          responses: z.array(CallActionSchema),
+        })
+        .optional(),
       transactions: z
         .object({
           endpointPrefix: z.string(),
