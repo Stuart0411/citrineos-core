@@ -40,6 +40,10 @@ import {
   ConfigurationOcpp16Api,
   ConfigurationOcpp2Api,
   ConnectedStationFilter,
+  DerControlOcpp2Api,
+  DerControlModule,
+  EmsDataApi,
+  EmsModule,
   EVDriverDataApi,
   EVDriverModule,
   EVDriverOcpp16Api,
@@ -269,6 +273,7 @@ export class CitrineOSServer {
       throw new Error('RabbitMQ URL is not configured');
     }
     this._connectionManager = new RabbitMQConnectionManager(this._config.maxReconnectDelay, url);
+    this._connectionManager.setMaxListeners(30);
     this._channelManager = new RabbitMQChannelManager(this._connectionManager);
     await this._connectionManager.connect();
   }
@@ -446,8 +451,16 @@ export class CitrineOSServer {
       await this.initConfigurationModule();
     }
 
+    if (this._config.modules.dercontrol) {
+      await this.initDerControlModule();
+    }
+
     if (this._config.modules.evdriver) {
       await this.initEVDriverModule();
+    }
+
+    if (this._config.modules.ems) {
+      await this.initEmsModule();
     }
 
     if (this._config.modules.monitoring) {
@@ -538,6 +551,19 @@ export class CitrineOSServer {
     );
   }
 
+  protected async initDerControlModule() {
+    const module = new DerControlModule(
+      this._config,
+      this._cache,
+      this._createSender(),
+      this._createHandler(),
+      this._logger,
+      this._ocppValidator,
+    );
+    await this.initHandlersAndAddModule(module);
+    this.apis.push(new DerControlOcpp2Api(module, this._server, OCPPVersion.OCPP2_1, this._logger));
+  }
+
   protected async initEVDriverModule() {
     const module = new EVDriverModule(
       this._config,
@@ -567,6 +593,24 @@ export class CitrineOSServer {
       new EVDriverOcpp16Api(module, this._server, this._logger),
       new EVDriverDataApi(module, this._server, this._logger),
     );
+  }
+
+  protected async initEmsModule() {
+    const module = new EmsModule(
+      this._config,
+      this._cache,
+      this._createSender(),
+      this._createHandler(),
+      this._logger,
+      this._ocppValidator,
+      this._repositoryStore.emsSiteIntentRepository,
+      this._repositoryStore.emsDecisionRepository,
+      this._repositoryStore.locationRepository,
+      this._repositoryStore.chargingProfileRepository,
+    );
+    await this.initHandlersAndAddModule(module);
+    await module.startMqttBridge();
+    this.apis.push(new EmsDataApi(module, this._server, this._logger));
   }
 
   protected async initMonitoringModule() {
@@ -683,8 +727,14 @@ export class CitrineOSServer {
       case EventGroup.Configuration:
         await this.initConfigurationModule();
         break;
+      case EventGroup.DerControl:
+        await this.initDerControlModule();
+        break;
       case EventGroup.EVDriver:
         await this.initEVDriverModule();
+        break;
+      case EventGroup.Ems:
+        await this.initEmsModule();
         break;
       case EventGroup.Monitoring:
         await this.initMonitoringModule();

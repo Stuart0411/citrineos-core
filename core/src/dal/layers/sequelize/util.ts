@@ -23,6 +23,9 @@ import { Component } from './model/DeviceModel/Component.js';
 import { CompositeSchedule } from './model/ChargingProfile/CompositeSchedule.js';
 import { Connector } from './model/Location/Connector.js';
 import { DeleteCertificateAttempt } from './model/Certificate/DeleteCertificateAttempt.js';
+import { DerControl } from './model/DerControl.js';
+import { EmsDecision } from './model/EmsDecision.js';
+import { EmsSiteIntent } from './model/EmsSiteIntent.js';
 import { EventData } from './model/VariableMonitoring/EventData.js';
 import { Evse } from './model/Location/Evse.js';
 import { EvseType } from './model/DeviceModel/EvseType.js';
@@ -148,6 +151,9 @@ export class DefaultSequelizeInstance {
         InstalledCertificate,
         InstallCertificateAttempt,
         DeleteCertificateAttempt,
+        DerControl,
+        EmsDecision,
+        EmsSiteIntent,
         ChangeConfiguration,
         ChargingNeeds,
         ChargingProfile,

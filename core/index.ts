@@ -9,6 +9,8 @@ export * from '@util/index.js';
 // Module exports
 export * from '@modules/Certificates/src/index.js';
 export * from '@modules/Configuration/src/index.js';
+export * from '@modules/DERControl/src/index.js';
+export * from '@modules/EMS/src/index.js';
 export * from '@modules/EVDriver/src/index.js';
 export * from '@modules/Monitoring/src/index.js';
 export * from '@modules/OcppRouter/src/index.js';
