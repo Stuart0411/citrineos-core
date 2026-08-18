@@ -43,13 +43,13 @@ export class DerControlOcpp2Api
       'SetDERControlRequestSchema',
     ),
   )
-  setDERControl(
+  async setDERControl(
     identifier: string[],
     request: OCPP2_1.SetDERControlRequest,
     callbackUrl?: string,
     tenantId: number = DEFAULT_TENANT_ID,
   ): Promise<IMessageConfirmation[]> {
-    this._module.validateSetDERControlRequest(request);
+    await this._module.validateOutboundSetDERControlRequest(identifier, request, tenantId);
 
     return packageGroupCall(
       this._module,

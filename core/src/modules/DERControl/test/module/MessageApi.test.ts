@@ -31,6 +31,7 @@ describe('DerControlOcpp2Api', () => {
           },
         },
       },
+      validateOutboundSetDERControlRequest: vi.fn().mockResolvedValue(undefined),
       validateSetDERControlRequest: vi.fn(),
       validateClearDERControlRequest: vi.fn(),
     };
@@ -50,7 +51,11 @@ describe('DerControlOcpp2Api', () => {
 
     const result = await api.setDERControl(['cs-1'], request, undefined, 9);
 
-    expect(moduleMock.validateSetDERControlRequest).toHaveBeenCalledWith(request);
+    expect(moduleMock.validateOutboundSetDERControlRequest).toHaveBeenCalledWith(
+      ['cs-1'],
+      request,
+      9,
+    );
     expect(packageGroupCallMock).toHaveBeenCalledWith(
       moduleMock,
       ['cs-1'],
@@ -64,11 +69,11 @@ describe('DerControlOcpp2Api', () => {
   });
 
   it('blocks SetDERControl when module validation rejects control type', async () => {
-    moduleMock.validateSetDERControlRequest.mockImplementation(() => {
-      throw new BadRequestError('Unsupported DER control type(s) requested: FreqWatt');
-    });
+    moduleMock.validateOutboundSetDERControlRequest.mockRejectedValue(
+      new BadRequestError('Unsupported DER control type(s) requested: FreqWatt'),
+    );
 
-    expect(() =>
+    await expect(
       api.setDERControl(['cs-1'], {
         controlId: 'ctrl-1',
         controlType: 'FreqWatt',
@@ -79,7 +84,29 @@ describe('DerControlOcpp2Api', () => {
           curveData: [{ x: 0, y: 0 }],
         },
       } as any),
-    ).toThrow(BadRequestError);
+    ).rejects.toBeInstanceOf(BadRequestError);
+
+    expect(packageGroupCallMock).not.toHaveBeenCalled();
+  });
+
+  it('blocks SetDERControl when station capability snapshot rejects the requested type', async () => {
+    moduleMock.validateOutboundSetDERControlRequest.mockRejectedValue(
+      new BadRequestError(
+        'Station cs-2 does not report support for DER control type(s): LimitMaxDischarge',
+      ),
+    );
+
+    await expect(
+      api.setDERControl(['cs-2'], {
+        controlId: 'ctrl-2',
+        controlType: 'LimitMaxDischarge',
+        isDefault: false,
+        limitMaxDischarge: {
+          priority: 0,
+          maxDischargePower: 1000,
+        },
+      } as any),
+    ).rejects.toBeInstanceOf(BadRequestError);
 
     expect(packageGroupCallMock).not.toHaveBeenCalled();
   });

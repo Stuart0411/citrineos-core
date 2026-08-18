@@ -19,6 +19,7 @@ describe('DerControlModule handlers', () => {
   };
   let stationDerCapabilityRepository: {
     upsertCapabilitySnapshot: ReturnType<typeof vi.fn>;
+    readOnlyOneByQuery: ReturnType<typeof vi.fn>;
   };
   let ocppMessageRepository: {
     getRequestByCorrelationId: ReturnType<typeof vi.fn>;
@@ -42,6 +43,7 @@ describe('DerControlModule handlers', () => {
 
     stationDerCapabilityRepository = {
       upsertCapabilitySnapshot: vi.fn().mockResolvedValue(undefined),
+      readOnlyOneByQuery: vi.fn().mockResolvedValue(undefined),
     };
 
     ocppMessageRepository = {
@@ -524,5 +526,27 @@ describe('DerControlModule handlers', () => {
         isDefault: false,
       } as any),
     ).toThrow('ClearDERControl requires controlId or controlType');
+  });
+
+  it('rejects outbound SetDERControl when station capability snapshot excludes the type', async () => {
+    stationDerCapabilityRepository.readOnlyOneByQuery.mockResolvedValue({
+      stationId: 'cs-12',
+      supportedControlTypesJson: ['Curve'],
+    });
+
+    await expect(
+      module.validateOutboundSetDERControlRequest(
+        ['cs-12'],
+        {
+          controlId: 'ctrl-12',
+          controlType: 'Gradients',
+          isDefault: false,
+          gradient: {
+            gradient: 20,
+          },
+        } as any,
+        12,
+      ),
+    ).rejects.toThrow('Station cs-12 does not report support for DER control type(s): Gradients');
   });
 });

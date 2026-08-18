@@ -124,6 +124,45 @@ export class DerControlModule extends AbstractModule {
     }
   }
 
+  async validateOutboundSetDERControlRequest(
+    stationIds: string[],
+    request: OCPP2_1.SetDERControlRequest,
+    tenantId: number,
+  ): Promise<void> {
+    this.validateSetDERControlRequest(request);
+
+    const requestedTypes = this._collectRequestedControlTypesFromSet(request);
+    if (requestedTypes.length === 0) {
+      return;
+    }
+
+    for (const stationId of stationIds) {
+      const capability = await this._stationDerCapabilityRepository.readOnlyOneByQuery(tenantId, {
+        where: {
+          stationId,
+        },
+        order: [['updatedAt', 'DESC']],
+        limit: 1,
+      });
+
+      const supportedTypes = Array.isArray(capability?.supportedControlTypesJson)
+        ? capability.supportedControlTypesJson
+        : [];
+      if (supportedTypes.length === 0) {
+        continue;
+      }
+
+      const supportedTypeSet = new Set(supportedTypes.map((value) => value.toLowerCase()));
+      const unsupportedTypes = requestedTypes.filter(
+        (controlType) => !supportedTypeSet.has(controlType.toLowerCase()),
+      );
+      if (unsupportedTypes.length > 0) {
+        throw new BadRequestError(
+          `Station ${stationId} does not report support for DER control type(s): ${unsupportedTypes.join(', ')}`,
+        );
+      }
+    }
+  }
   validateClearDERControlRequest(request: OCPP2_1.ClearDERControlRequest): void {
     const requireSelector =
       this.config.modules.dercontrol?.policy?.requireExplicitControlSelectorOnClear ?? true;
