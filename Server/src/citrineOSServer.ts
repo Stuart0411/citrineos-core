@@ -560,6 +560,8 @@ export class CitrineOSServer {
       this._createHandler(),
       this._logger,
       this._ocppValidator,
+      this._repositoryStore.derControlRepository,
+      this._repositoryStore.derEventRepository,
     );
     await this.initHandlersAndAddModule(module);
     this.apis.push(

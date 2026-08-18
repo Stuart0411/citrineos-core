@@ -9,7 +9,11 @@ import type {
   IChargingProfileRepository,
   IChargingStationSequenceRepository,
   IDeleteCertificateAttemptRepository,
+  IDerControlRepository,
+  IDerEventRepository,
+  IEmsDecisionRepository,
   IDeviceModelRepository,
+  IEmsSiteIntentRepository,
   IInstallCertificateAttemptRepository,
   IInstalledCertificateRepository,
   ILocalAuthListRepository,
@@ -55,6 +59,10 @@ import { SequelizeServerNetworkProfileRepository } from './ServerNetworkProfile.
 import { SequelizeInstalledCertificateRepository } from './InstalledCertificate.js';
 import { SequelizeInstallCertificateAttemptRepository } from './InstallCertificateAttempt.js';
 import { SequelizeDeleteCertificateAttemptRepository } from './DeleteCertificateAttempt.js';
+import { SequelizeDerControlRepository } from './DerControl.js';
+import { SequelizeDerEventRepository } from './DerEvent.js';
+import { SequelizeEmsDecisionRepository } from './EmsDecision.js';
+import { SequelizeEmsSiteIntentRepository } from './EmsSiteIntent.js';
 
 export class RepositoryStore {
   sequelizeInstance: Sequelize;
@@ -64,6 +72,10 @@ export class RepositoryStore {
   installedCertificateRepository: IInstalledCertificateRepository;
   installCertificateAttemptRepository: IInstallCertificateAttemptRepository;
   deleteCertificateAttemptRepository: IDeleteCertificateAttemptRepository;
+  derControlRepository: IDerControlRepository;
+  derEventRepository: IDerEventRepository;
+  emsDecisionRepository: IEmsDecisionRepository;
+  emsSiteIntentRepository: IEmsSiteIntentRepository;
   changeConfigurationRepository: IChangeConfigurationRepository;
   chargingProfileRepository: IChargingProfileRepository;
   chargingStationSequenceRepository: IChargingStationSequenceRepository;
@@ -106,6 +118,22 @@ export class RepositoryStore {
       sequelizeInstance,
     );
     this.deleteCertificateAttemptRepository = new SequelizeDeleteCertificateAttemptRepository(
+      config,
+      logger,
+      sequelizeInstance,
+    );
+    this.derControlRepository = new SequelizeDerControlRepository(
+      config,
+      logger,
+      sequelizeInstance,
+    );
+    this.derEventRepository = new SequelizeDerEventRepository(config, logger, sequelizeInstance);
+    this.emsDecisionRepository = new SequelizeEmsDecisionRepository(
+      config,
+      logger,
+      sequelizeInstance,
+    );
+    this.emsSiteIntentRepository = new SequelizeEmsSiteIntentRepository(
       config,
       logger,
       sequelizeInstance,

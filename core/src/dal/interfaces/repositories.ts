@@ -23,6 +23,7 @@ import type {
   ChargingProfileInput,
   CompositeScheduleInput,
 } from '../layers/sequelize/mapper/2.0.1/ChargingProfileMapper.js';
+import type { EmsSiteIntentCreate } from '@citrineos/base';
 import type { Authorization } from '../layers/sequelize/model/Authorization/Authorization.js';
 import type { Boot } from '../layers/sequelize/model/Boot.js';
 import type { Certificate } from '../layers/sequelize/model/Certificate/Certificate.js';
@@ -38,6 +39,10 @@ import type { SecurityEvent } from '../layers/sequelize/model/SecurityEvent.js';
 import type { Transaction } from '../layers/sequelize/model/TransactionEvent/index.js';
 import type { VariableAttribute } from '../layers/sequelize/model/DeviceModel/VariableAttribute.js';
 import type { ChangeConfiguration } from '../layers/sequelize/model/ChangeConfiguration.js';
+import type { DerControl } from '../layers/sequelize/model/DerControl.js';
+import type { DerEvent } from '../layers/sequelize/model/DerEvent.js';
+import type { EmsDecision } from '../layers/sequelize/model/EmsDecision.js';
+import type { EmsSiteIntent } from '../layers/sequelize/model/EmsSiteIntent.js';
 import type {
   ChargingNeeds,
   ChargingProfile,
@@ -273,6 +278,7 @@ export interface ILocationRepository extends CrudRepository<Location> {
     stationId: string,
     timestamp: string,
   ): Promise<void>;
+  getChargingStationsByIds(tenantId: number, stationIds: string[]): Promise<ChargingStation[]>;
 }
 
 export interface ISecurityEventRepository extends CrudRepository<SecurityEvent> {
@@ -294,6 +300,76 @@ export interface ISubscriptionRepository extends CrudRepository<Subscription> {
   create(tenantId: number, value: Subscription): Promise<Subscription>;
   readAllByStationId(tenantId: number, stationId: string): Promise<Subscription[]>;
   deleteByKey(tenantId: number, key: string): Promise<Subscription | undefined>;
+}
+
+export interface IEmsSiteIntentRepository extends CrudRepository<EmsSiteIntent> {
+  createSiteIntent(tenantId: number, value: EmsSiteIntentCreate): Promise<EmsSiteIntent>;
+  readAllBySiteId(tenantId: number, siteId: string): Promise<EmsSiteIntent[]>;
+  readLatestActiveBySiteId(
+    tenantId: number,
+    siteId: string,
+    atTime?: Date,
+  ): Promise<EmsSiteIntent | undefined>;
+}
+
+export interface IEmsDecisionRepository extends CrudRepository<EmsDecision> {
+  createDecision(
+    tenantId: number,
+    value: {
+      siteId: string;
+      stationId: string;
+      evseId: number;
+      intentMessageId?: string | null;
+      decisionType: string;
+      decisionJson: Record<string, unknown>;
+    },
+  ): Promise<EmsDecision>;
+}
+
+export interface IDerControlRepository extends CrudRepository<DerControl> {
+  upsertFromReport(
+    tenantId: number,
+    stationId: string,
+    value: {
+      controlId: string;
+      controlType: string;
+      isDefault: boolean;
+      isSuperseded: boolean;
+      priority: number | null;
+      payloadJson: Record<string, unknown>;
+      startTime: Date | null;
+      durationSeconds: number | null;
+      status: string | null;
+      supersededByControlId: string | null;
+    },
+  ): Promise<void>;
+
+  updateStartStopState(
+    tenantId: number,
+    stationId: string,
+    controlId: string,
+    started: boolean,
+  ): Promise<void>;
+
+  markSupersededByControlId(
+    tenantId: number,
+    stationId: string,
+    supersededIds: string[],
+    supersededByControlId: string,
+  ): Promise<void>;
+}
+
+export interface IDerEventRepository extends CrudRepository<DerEvent> {
+  createEvent(
+    tenantId: number,
+    value: {
+      stationId: string;
+      eventType: string;
+      controlId?: string | null;
+      payloadJson: Record<string, unknown>;
+      occurredAt: Date;
+    },
+  ): Promise<DerEvent>;
 }
 
 export interface ITransactionEventRepository extends CrudRepository<TransactionEvent> {

@@ -21,8 +21,11 @@ import {
   OCPPValidator,
   OCPPVersion,
 } from '@citrineos/base';
-import { DerControl } from '@dal/layers/sequelize/model/DerControl.js';
-import { DerEvent } from '@dal/layers/sequelize/model/DerEvent.js';
+import type { IDerControlRepository, IDerEventRepository } from '@dal/interfaces/repositories.js';
+import {
+  SequelizeDerControlRepository,
+  SequelizeDerEventRepository,
+} from '@dal/layers/sequelize/index.js';
 import type { ILogObj } from 'tslog';
 import { Logger } from 'tslog';
 
@@ -35,6 +38,8 @@ import { Logger } from 'tslog';
 export class DerControlModule extends AbstractModule {
   _requests: CallAction[] = [];
   _responses: CallAction[] = [];
+  protected _derControlRepository: IDerControlRepository;
+  protected _derEventRepository: IDerEventRepository;
 
   constructor(
     config: BootstrapConfig & SystemConfig,
@@ -43,11 +48,25 @@ export class DerControlModule extends AbstractModule {
     handler: IMessageHandler,
     logger?: Logger<ILogObj>,
     ocppValidator?: OCPPValidator,
+    derControlRepository?: IDerControlRepository,
+    derEventRepository?: IDerEventRepository,
   ) {
     super(config, cache, handler, sender, EventGroup.DerControl, logger, ocppValidator);
 
     this._requests = config.modules.dercontrol?.requests ?? [];
     this._responses = config.modules.dercontrol?.responses ?? [];
+    this._derControlRepository =
+      derControlRepository || new SequelizeDerControlRepository(config, logger);
+    this._derEventRepository =
+      derEventRepository || new SequelizeDerEventRepository(config, logger);
+  }
+
+  get derControlRepository(): IDerControlRepository {
+    return this._derControlRepository;
+  }
+
+  get derEventRepository(): IDerEventRepository {
+    return this._derEventRepository;
   }
 
   @AsHandler([OCPPVersion.OCPP2_1], OCPP_CallAction.SetDERControl)
@@ -83,20 +102,11 @@ export class DerControlModule extends AbstractModule {
 
     const controls = this._flattenReportControls(message.payload);
     for (const control of controls) {
-      await DerControl.upsert({
-        tenantId: message.context.tenantId,
-        stationId: message.context.stationId,
-        controlId: control.controlId,
-        controlType: control.controlType,
-        isDefault: control.isDefault,
-        priority: control.priority,
-        payloadJson: control.payloadJson,
-        startTime: control.startTime,
-        durationSeconds: control.durationSeconds,
-        status: control.status,
-        isSuperseded: control.isSuperseded,
-        supersededByControlId: control.supersededByControlId,
-      });
+      await this._derControlRepository.upsertFromReport(
+        message.context.tenantId,
+        message.context.stationId,
+        control,
+      );
     }
 
     await this.sendCallResultWithMessage(message, {} as OCPP2_1.ReportDERControlResponse);
@@ -109,8 +119,7 @@ export class DerControlModule extends AbstractModule {
   ): Promise<void> {
     this._logger.debug('NotifyDERAlarm request received:', message, props);
 
-    await DerEvent.create({
-      tenantId: message.context.tenantId,
+    await this._derEventRepository.createEvent(message.context.tenantId, {
       stationId: message.context.stationId,
       eventType: 'notify_der_alarm',
       controlId: null,
@@ -128,8 +137,7 @@ export class DerControlModule extends AbstractModule {
   ): Promise<void> {
     this._logger.debug('NotifyDERStartStop request received:', message, props);
 
-    await DerEvent.create({
-      tenantId: message.context.tenantId,
+    await this._derEventRepository.createEvent(message.context.tenantId, {
       stationId: message.context.stationId,
       eventType: message.payload.started ? 'notify_der_start' : 'notify_der_stop',
       controlId: message.payload.controlId,
@@ -137,35 +145,19 @@ export class DerControlModule extends AbstractModule {
       occurredAt: this._coerceDate(message.payload.timestamp),
     });
 
-    await DerControl.update(
-      {
-        status: message.payload.started ? 'started' : 'stopped',
-        isSuperseded: false,
-        supersededByControlId: null,
-      },
-      {
-        where: {
-          tenantId: message.context.tenantId,
-          stationId: message.context.stationId,
-          controlId: message.payload.controlId,
-        },
-      },
+    await this._derControlRepository.updateStartStopState(
+      message.context.tenantId,
+      message.context.stationId,
+      message.payload.controlId,
+      message.payload.started,
     );
 
     if (message.payload.started && message.payload.supersededIds?.length) {
-      await DerControl.update(
-        {
-          isSuperseded: true,
-          supersededByControlId: message.payload.controlId,
-          status: 'superseded',
-        },
-        {
-          where: {
-            tenantId: message.context.tenantId,
-            stationId: message.context.stationId,
-            controlId: message.payload.supersededIds as unknown as string[],
-          },
-        },
+      await this._derControlRepository.markSupersededByControlId(
+        message.context.tenantId,
+        message.context.stationId,
+        message.payload.supersededIds,
+        message.payload.controlId,
       );
     }
 

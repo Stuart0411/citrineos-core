@@ -103,6 +103,8 @@ export { SequelizeInstallCertificateAttemptRepository } from './repository/Insta
 export { SequelizeDeleteCertificateAttemptRepository } from './repository/DeleteCertificateAttempt.js';
 export { SequelizeEmsDecisionRepository } from './repository/EmsDecision.js';
 export { SequelizeEmsSiteIntentRepository } from './repository/EmsSiteIntent.js';
+export { SequelizeDerControlRepository } from './repository/DerControl.js';
+export { SequelizeDerEventRepository } from './repository/DerEvent.js';
 
 // Sequelize Utilities
 export { DefaultSequelizeInstance } from './util.js';
