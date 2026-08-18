@@ -17,6 +17,7 @@ export enum Namespace {
   EmsMqttBridge = 'EmsMqttBridge',
   EmsDecision = 'EmsDecision',
   DerControl = 'DerControl',
+  DerEvent = 'DerEvent',
   EmsIntakeTelemetry = 'EmsIntakeTelemetry',
   Connection = 'Connection',
   EmsSiteIntent = 'EmsSiteIntent',

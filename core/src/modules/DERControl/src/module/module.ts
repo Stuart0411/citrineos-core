@@ -21,6 +21,8 @@ import {
   OCPPValidator,
   OCPPVersion,
 } from '@citrineos/base';
+import { DerControl } from '@dal/layers/sequelize/model/DerControl.js';
+import { DerEvent } from '@dal/layers/sequelize/model/DerEvent.js';
 import type { ILogObj } from 'tslog';
 import { Logger } from 'tslog';
 
@@ -70,5 +72,175 @@ export class DerControlModule extends AbstractModule {
     props?: HandlerProperties,
   ): Promise<void> {
     this._logger.debug('ClearDERControl response received:', message, props);
+  }
+
+  @AsHandler([OCPPVersion.OCPP2_1], OCPP_CallAction.ReportDERControl)
+  protected async _handleReportDERControlRequest(
+    message: IMessage<OCPP2_1.ReportDERControlRequest>,
+    props?: HandlerProperties,
+  ): Promise<void> {
+    this._logger.debug('ReportDERControl request received:', message, props);
+
+    const controls = this._flattenReportControls(message.payload);
+    for (const control of controls) {
+      await DerControl.upsert({
+        tenantId: message.context.tenantId,
+        stationId: message.context.stationId,
+        controlId: control.controlId,
+        controlType: control.controlType,
+        isDefault: control.isDefault,
+        priority: control.priority,
+        payloadJson: control.payloadJson,
+        startTime: control.startTime,
+        durationSeconds: control.durationSeconds,
+        status: control.status,
+        isSuperseded: control.isSuperseded,
+        supersededByControlId: control.supersededByControlId,
+      });
+    }
+
+    await this.sendCallResultWithMessage(message, {} as OCPP2_1.ReportDERControlResponse);
+  }
+
+  @AsHandler([OCPPVersion.OCPP2_1], OCPP_CallAction.NotifyDERAlarm)
+  protected async _handleNotifyDERAlarmRequest(
+    message: IMessage<OCPP2_1.NotifyDERAlarmRequest>,
+    props?: HandlerProperties,
+  ): Promise<void> {
+    this._logger.debug('NotifyDERAlarm request received:', message, props);
+
+    await DerEvent.create({
+      tenantId: message.context.tenantId,
+      stationId: message.context.stationId,
+      eventType: 'notify_der_alarm',
+      controlId: null,
+      payloadJson: message.payload as unknown as Record<string, unknown>,
+      occurredAt: this._coerceDate(message.payload.timestamp),
+    });
+
+    await this.sendCallResultWithMessage(message, {} as OCPP2_1.NotifyDERAlarmResponse);
+  }
+
+  @AsHandler([OCPPVersion.OCPP2_1], OCPP_CallAction.NotifyDERStartStop)
+  protected async _handleNotifyDERStartStopRequest(
+    message: IMessage<OCPP2_1.NotifyDERStartStopRequest>,
+    props?: HandlerProperties,
+  ): Promise<void> {
+    this._logger.debug('NotifyDERStartStop request received:', message, props);
+
+    await DerEvent.create({
+      tenantId: message.context.tenantId,
+      stationId: message.context.stationId,
+      eventType: message.payload.started ? 'notify_der_start' : 'notify_der_stop',
+      controlId: message.payload.controlId,
+      payloadJson: message.payload as unknown as Record<string, unknown>,
+      occurredAt: this._coerceDate(message.payload.timestamp),
+    });
+
+    await DerControl.update(
+      {
+        status: message.payload.started ? 'started' : 'stopped',
+        isSuperseded: false,
+        supersededByControlId: null,
+      },
+      {
+        where: {
+          tenantId: message.context.tenantId,
+          stationId: message.context.stationId,
+          controlId: message.payload.controlId,
+        },
+      },
+    );
+
+    if (message.payload.started && message.payload.supersededIds?.length) {
+      await DerControl.update(
+        {
+          isSuperseded: true,
+          supersededByControlId: message.payload.controlId,
+          status: 'superseded',
+        },
+        {
+          where: {
+            tenantId: message.context.tenantId,
+            stationId: message.context.stationId,
+            controlId: message.payload.supersededIds as unknown as string[],
+          },
+        },
+      );
+    }
+
+    await this.sendCallResultWithMessage(message, {} as OCPP2_1.NotifyDERStartStopResponse);
+  }
+
+  private _coerceDate(isoLike: string): Date {
+    const parsed = new Date(isoLike);
+    return Number.isNaN(parsed.getTime()) ? new Date() : parsed;
+  }
+
+  private _flattenReportControls(payload: OCPP2_1.ReportDERControlRequest): Array<{
+    controlId: string;
+    controlType: string;
+    isDefault: boolean;
+    isSuperseded: boolean;
+    priority: number | null;
+    payloadJson: Record<string, unknown>;
+    startTime: Date | null;
+    durationSeconds: number | null;
+    status: string | null;
+    supersededByControlId: string | null;
+  }> {
+    const groups: Array<[string, unknown[] | null | undefined]> = [
+      ['Curve', payload.curve as unknown[] | null | undefined],
+      ['EnterService', payload.enterService as unknown[] | null | undefined],
+      ['FixedPFAbsorb', payload.fixedPFAbsorb as unknown[] | null | undefined],
+      ['FixedPFInject', payload.fixedPFInject as unknown[] | null | undefined],
+      ['FixedVar', payload.fixedVar as unknown[] | null | undefined],
+      ['FreqDroop', payload.freqDroop as unknown[] | null | undefined],
+      ['Gradients', payload.gradient as unknown[] | null | undefined],
+      ['LimitMaxDischarge', payload.limitMaxDischarge as unknown[] | null | undefined],
+    ];
+
+    const controls: Array<{
+      controlId: string;
+      controlType: string;
+      isDefault: boolean;
+      isSuperseded: boolean;
+      priority: number | null;
+      payloadJson: Record<string, unknown>;
+      startTime: Date | null;
+      durationSeconds: number | null;
+      status: string | null;
+      supersededByControlId: string | null;
+    }> = [];
+
+    for (const [fallbackType, rows] of groups) {
+      for (const row of rows ?? []) {
+        const item = row as Record<string, unknown>;
+        const inner = Object.values(item).find(
+          (candidate) => candidate && typeof candidate === 'object' && !Array.isArray(candidate),
+        ) as Record<string, unknown> | undefined;
+
+        const controlType = (item.controlType as string | undefined) ?? fallbackType;
+        const priority = typeof inner?.priority === 'number' ? inner.priority : null;
+        const durationSeconds = typeof inner?.duration === 'number' ? inner.duration : null;
+        const startTime =
+          typeof inner?.startTime === 'string' ? this._coerceDate(inner.startTime) : null;
+
+        controls.push({
+          controlId: String(item.id ?? ''),
+          controlType,
+          isDefault: Boolean(item.isDefault),
+          isSuperseded: Boolean(item.isSuperseded),
+          priority,
+          payloadJson: item,
+          startTime,
+          durationSeconds,
+          status: null,
+          supersededByControlId: null,
+        });
+      }
+    }
+
+    return controls.filter((entry) => entry.controlId.length > 0);
   }
 }

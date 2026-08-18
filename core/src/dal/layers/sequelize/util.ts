@@ -24,6 +24,7 @@ import { CompositeSchedule } from './model/ChargingProfile/CompositeSchedule.js'
 import { Connector } from './model/Location/Connector.js';
 import { DeleteCertificateAttempt } from './model/Certificate/DeleteCertificateAttempt.js';
 import { DerControl } from './model/DerControl.js';
+import { DerEvent } from './model/DerEvent.js';
 import { EmsDecision } from './model/EmsDecision.js';
 import { EmsSiteIntent } from './model/EmsSiteIntent.js';
 import { EventData } from './model/VariableMonitoring/EventData.js';
@@ -152,6 +153,7 @@ export class DefaultSequelizeInstance {
         InstallCertificateAttempt,
         DeleteCertificateAttempt,
         DerControl,
+        DerEvent,
         EmsDecision,
         EmsSiteIntent,
         ChangeConfiguration,
