@@ -1097,6 +1097,52 @@ describe('MessageRouterImpl', () => {
 
       expect(callbackSpy).toHaveBeenCalled();
     });
+
+    it('should route AFRRSignal call errors through sender', async () => {
+      cache.get.mockResolvedValue(null);
+
+      const message: CallError = [
+        MessageTypeId.CallError,
+        CORRELATION_ID,
+        ErrorCode.InternalError,
+        'Request Timeout',
+        {},
+      ];
+
+      const result = await (router as any)._routeCallError(
+        IDENTIFIER,
+        message,
+        OCPP_CallAction.AFRRSignal,
+        new Date(),
+        PROTOCOL,
+      );
+
+      expect(sender.send).toHaveBeenCalled();
+      expect(result.success).toBe(true);
+    });
+
+    it('should keep non-special call errors unimplemented', async () => {
+      cache.get.mockResolvedValue(null);
+
+      const message: CallError = [
+        MessageTypeId.CallError,
+        CORRELATION_ID,
+        ErrorCode.InternalError,
+        'Request Timeout',
+        {},
+      ];
+
+      const result = await (router as any)._routeCallError(
+        IDENTIFIER,
+        message,
+        OCPP_CallAction.BootNotification,
+        new Date(),
+        PROTOCOL,
+      );
+
+      expect(sender.send).not.toHaveBeenCalled();
+      expect(result.success).toBe(false);
+    });
   });
 
   // ─── Integration-style: full message flow ─────────────────────────────────

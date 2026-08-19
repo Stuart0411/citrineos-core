@@ -927,9 +927,17 @@ export class MessageRouterImpl extends AbstractMessageRouter implements IMessage
   ): Promise<IMessageConfirmation> {
     let confirmation: IMessageConfirmation;
     if (message.payload instanceof OcppError) {
-      // No error routing currently done
-      this._logger.warn('OCPP Error routing not implemented');
-      confirmation = { success: false };
+      // Route selected call errors to modules for fallback/reconciliation handling.
+      if (
+        message.action === OCPP_CallAction.GetDERControl ||
+        message.action === OCPP_CallAction.AFRRSignal
+      ) {
+        confirmation = await this._sender.send(message);
+      } else {
+        // No generic error routing currently done
+        this._logger.warn('OCPP Error routing not implemented');
+        confirmation = { success: false };
+      }
     } else {
       confirmation = await this._sender.send(message);
     }

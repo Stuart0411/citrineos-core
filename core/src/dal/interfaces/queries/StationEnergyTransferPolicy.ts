@@ -41,6 +41,14 @@ export const StationEnergyTransferPolicyQuerySchema = QuerySchema(
       key: 'limit',
       type: 'number',
     },
+    {
+      key: 'includeDiagnostics',
+      type: 'boolean',
+    },
+    {
+      key: 'summary',
+      type: 'boolean',
+    },
   ],
 );
 
@@ -53,4 +61,6 @@ export interface StationEnergyTransferPolicyQuerystring {
   fromUpdatedAt?: string;
   toUpdatedAt?: string;
   limit?: number;
+  includeDiagnostics?: boolean;
+  summary?: boolean;
 }

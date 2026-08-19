@@ -24,6 +24,8 @@ import type { IV2XModuleApi } from './interface.js';
 import { V2XModule } from './module.js';
 
 export class V2XDataApi extends AbstractModuleApi<V2XModule> implements IV2XModuleApi {
+  private static readonly DIAGNOSTIC_TRANSACTION_ID = '__diag_afrrsignal__';
+
   constructor(module: V2XModule, server: FastifyInstance, logger?: Logger<ILogObj>) {
     super(module, server, null, logger);
   }
@@ -45,6 +47,8 @@ export class V2XDataApi extends AbstractModuleApi<V2XModule> implements IV2XModu
       fromUpdatedAt,
       toUpdatedAt,
       limit,
+      includeDiagnostics,
+      summary,
     } = request.query;
 
     const fromDate = fromUpdatedAt ? new Date(fromUpdatedAt) : undefined;
@@ -86,12 +90,31 @@ export class V2XDataApi extends AbstractModuleApi<V2XModule> implements IV2XModu
       where.updatedAt = updatedAtFilter;
     }
 
+    const shouldIncludeDiagnostics = Boolean(includeDiagnostics || summary);
+    if (!shouldIncludeDiagnostics && !transactionId) {
+      where.transactionId = {
+        [Op.ne]: V2XDataApi.DIAGNOSTIC_TRANSACTION_ID,
+      };
+    }
+
     const boundedLimit = Math.min(Math.max(limit ?? 200, 1), 1000);
-    return this._module.stationEnergyTransferPolicyRepository.readAllByQuery(tenantId, {
+    const rows = await this._module.stationEnergyTransferPolicyRepository.readAllByQuery(tenantId, {
       where,
       order: [['updatedAt', 'DESC']],
       limit: boundedLimit,
     });
+
+    if (!summary) {
+      return rows;
+    }
+
+    const plainRows = rows.map((row) =>
+      typeof (row as { toJSON?: () => Record<string, unknown> }).toJSON === 'function'
+        ? (row as { toJSON: () => Record<string, unknown> }).toJSON()
+        : (row as unknown as Record<string, unknown>),
+    );
+
+    return this._module.summarizeStationCapabilities(plainRows);
   }
 
   protected _toDataPath(input: OCPP2_Namespace | OCPP1_6_Namespace | Namespace): string {

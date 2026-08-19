@@ -11,6 +11,7 @@ vi.spyOn(Reflect, 'getMetadata').mockReturnValue([]);
 
 describe('V2XDataApi', () => {
   let stationEnergyTransferPolicyRepository: { readAllByQuery: ReturnType<typeof vi.fn> };
+  let summarizeStationCapabilities: ReturnType<typeof vi.fn>;
   let api: V2XDataApi;
 
   beforeEach(() => {
@@ -19,6 +20,7 @@ describe('V2XDataApi', () => {
     stationEnergyTransferPolicyRepository = {
       readAllByQuery: vi.fn().mockResolvedValue([]),
     };
+    summarizeStationCapabilities = vi.fn().mockReturnValue([{ stationId: 'cs-v2x-7' }]);
 
     const moduleMock = {
       config: {
@@ -29,6 +31,7 @@ describe('V2XDataApi', () => {
         },
       },
       stationEnergyTransferPolicyRepository,
+      summarizeStationCapabilities,
     } as any;
 
     api = new V2XDataApi(moduleMock, {} as any);
@@ -65,6 +68,8 @@ describe('V2XDataApi', () => {
     const call = stationEnergyTransferPolicyRepository.readAllByQuery.mock.calls[0][1];
     const allowedModeFilter = call.where.allowedModesJson as Record<symbol, string[]>;
     expect(allowedModeFilter[Op.contains]).toEqual(['AC_BPT_DER']);
+
+    expect(call.where.transactionId).toEqual('tx-7');
   });
 
   it('uses default tenant and validates policy date windows', async () => {
@@ -77,10 +82,16 @@ describe('V2XDataApi', () => {
     expect(stationEnergyTransferPolicyRepository.readAllByQuery).toHaveBeenCalledWith(
       DEFAULT_TENANT_ID,
       expect.objectContaining({
-        where: {},
+        where: expect.objectContaining({
+          transactionId: expect.any(Object),
+        }),
         limit: 1,
       }),
     );
+
+    const defaultCall = stationEnergyTransferPolicyRepository.readAllByQuery.mock.calls[0][1];
+    const defaultTransactionIdFilter = defaultCall.where.transactionId as Record<symbol, string>;
+    expect(defaultTransactionIdFilter[Op.ne]).toEqual('__diag_afrrsignal__');
 
     await expect(
       api.getStationEnergyTransferPolicies({
@@ -90,5 +101,57 @@ describe('V2XDataApi', () => {
         },
       } as any),
     ).rejects.toBeInstanceOf(BadRequestError);
+  });
+
+  it('includes diagnostic rows when includeDiagnostics is true', async () => {
+    await api.getStationEnergyTransferPolicies({
+      query: {
+        tenantId: 7,
+        includeDiagnostics: true,
+      },
+    } as any);
+
+    const call = stationEnergyTransferPolicyRepository.readAllByQuery.mock.calls[0][1];
+    expect(call.where.transactionId).toBeUndefined();
+  });
+
+  it('does not overwrite explicit transactionId filter when includeDiagnostics is false', async () => {
+    await api.getStationEnergyTransferPolicies({
+      query: {
+        tenantId: 7,
+        transactionId: 'tx-7',
+      },
+    } as any);
+
+    const call = stationEnergyTransferPolicyRepository.readAllByQuery.mock.calls[0][1];
+    expect(call.where.transactionId).toEqual('tx-7');
+  });
+
+  it('returns summarized station capability view when summary is true', async () => {
+    stationEnergyTransferPolicyRepository.readAllByQuery.mockResolvedValue([
+      {
+        toJSON: () => ({
+          stationId: 'cs-v2x-7',
+          transactionId: '__diag_afrrsignal__',
+        }),
+      },
+    ]);
+
+    const result = await api.getStationEnergyTransferPolicies({
+      query: {
+        tenantId: 7,
+        summary: true,
+      },
+    } as any);
+
+    const call = stationEnergyTransferPolicyRepository.readAllByQuery.mock.calls[0][1];
+    expect(call.where.transactionId).toBeUndefined();
+    expect(summarizeStationCapabilities).toHaveBeenCalledWith([
+      {
+        stationId: 'cs-v2x-7',
+        transactionId: '__diag_afrrsignal__',
+      },
+    ]);
+    expect(result).toEqual([{ stationId: 'cs-v2x-7' }]);
   });
 });
