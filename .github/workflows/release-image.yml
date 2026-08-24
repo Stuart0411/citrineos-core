@@ -1,0 +1,110 @@
+# SPDX-FileCopyrightText: 2026 Contributors to the CitrineOS Project
+#
+# SPDX-License-Identifier: Apache-2.0
+
+name: Release UI Image
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Image tag to publish (example: 2026.08.24.1)
+        required: true
+        type: string
+      publish_latest:
+        description: Also publish :latest tag
+        required: false
+        default: false
+        type: boolean
+  push:
+    tags:
+      - ui-v*
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/citrineos-operator-ui
+
+jobs:
+  build-and-push:
+    name: Build And Push Image
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set release tag
+        id: tag
+        shell: bash
+        run: |
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+            TAG="${{ github.event.inputs.release_tag }}"
+            LATEST="${{ github.event.inputs.publish_latest }}"
+          else
+            TAG="${GITHUB_REF_NAME#ui-v}"
+            LATEST="true"
+          fi
+
+          if [[ -z "${TAG}" ]]; then
+            echo "Tag cannot be empty" >&2
+            exit 1
+          fi
+
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "publish_latest=${LATEST}" >> "$GITHUB_OUTPUT"
+
+      - name: Validate build args
+        shell: bash
+        env:
+          NEXT_PUBLIC_API_URL: ${{ vars.NEXT_PUBLIC_API_URL }}
+          NEXT_PUBLIC_WS_URL: ${{ vars.NEXT_PUBLIC_WS_URL }}
+          NEXT_PUBLIC_CITRINE_CORE_URL: ${{ vars.NEXT_PUBLIC_CITRINE_CORE_URL }}
+          NEXT_PUBLIC_FILE_SERVER_URL: ${{ vars.NEXT_PUBLIC_FILE_SERVER_URL }}
+          NEXTAUTH_URL: ${{ vars.NEXTAUTH_URL }}
+        run: |
+          MISSING=0
+          for key in NEXT_PUBLIC_API_URL NEXT_PUBLIC_WS_URL NEXT_PUBLIC_CITRINE_CORE_URL NEXT_PUBLIC_FILE_SERVER_URL NEXTAUTH_URL; do
+            if [[ -z "${!key}" ]]; then
+              echo "Missing repository variable: ${key}" >&2
+              MISSING=1
+            fi
+          done
+          if [[ "$MISSING" -ne 0 ]]; then
+            exit 1
+          fi
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push release tag
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: ${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.tag }}
+          build-args: |
+            NEXT_PUBLIC_API_URL=${{ vars.NEXT_PUBLIC_API_URL }}
+            NEXT_PUBLIC_WS_URL=${{ vars.NEXT_PUBLIC_WS_URL }}
+            NEXT_PUBLIC_CITRINE_CORE_URL=${{ vars.NEXT_PUBLIC_CITRINE_CORE_URL }}
+            NEXT_PUBLIC_FILE_SERVER_URL=${{ vars.NEXT_PUBLIC_FILE_SERVER_URL }}
+            NEXTAUTH_URL=${{ vars.NEXTAUTH_URL }}
+
+      - name: Publish latest alias
+        if: steps.tag.outputs.publish_latest == 'true'
+        shell: bash
+        run: |
+          docker buildx imagetools create \
+            --tag "${IMAGE_NAME}:latest" \
+            "${IMAGE_NAME}:${{ steps.tag.outputs.tag }}"

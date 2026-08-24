@@ -207,6 +207,10 @@ npm run dev
 
 ## Running the Application
 
+## Deployment
+
+For production-friendly tagged image deployments and rollback steps, see [DEPLOYMENT.md](./DEPLOYMENT.md).
+
 ### Development Mode
 
 ```bash

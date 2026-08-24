@@ -1,0 +1,23 @@
+# SPDX-FileCopyrightText: 2026 Contributors to the CitrineOS Project
+#
+# SPDX-License-Identifier: Apache-2.0
+
+services:
+  citrine-ui:
+    image: ${UI_IMAGE:?Set UI_IMAGE to a fully-qualified image tag}
+    pull_policy: always
+    ports:
+      - 3000:3000
+    env_file:
+      - ./ui.runtime.env
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - fetch('http://127.0.0.1:3000').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
