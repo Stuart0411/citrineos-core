@@ -81,6 +81,8 @@ export class EmsModule extends AbstractModule {
   private _autoApplyDebounceTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
   // Last-applied fingerprint per "tenantId:stationId:evseId" to skip unchanged limits.
   private _lastAppliedFingerprints: Map<string, string> = new Map();
+  // Active OCPP 2.1 Dynamic profile ID per "tenantId:stationId:evseId:purpose" for UpdateDynamicSchedule.
+  private _activeEmsProfileIds: Map<string, number> = new Map();
 
   private static _createNoopDeviceModelRepository(): IDeviceModelRepository {
     return {
@@ -341,6 +343,65 @@ export class EmsModule extends AbstractModule {
         ? 0
         : recommendation.evseId;
 
+      // OCPP 2.1 Dynamic profiles: use UpdateDynamicSchedule after the first install.
+      const profileKey = `${tenantId}:${recommendation.stationId}:${recommendation.evseId}:${recommendation.chargingProfilePurpose}`;
+      const wouldBeDynamic =
+        recommendation.protocol === OCPPVersion.OCPP2_1 &&
+        !stationLevelPurposes.includes(recommendation.chargingProfilePurpose);
+      const existingProfileId = this._activeEmsProfileIds.get(profileKey);
+
+      if (wouldBeDynamic && existingProfileId !== undefined) {
+        const scheduleUpdate: OCPP2_1.ChargingScheduleUpdateType = {
+          limit: recommendation.limitW,
+          ...(typeof recommendation.dischargeLimitW === 'number'
+            ? { dischargeLimit: -Math.abs(recommendation.dischargeLimitW) }
+            : {}),
+        };
+        const updateConf = await this.sendCall(
+          recommendation.stationId,
+          tenantId,
+          recommendation.protocol as OCPPVersion,
+          OCPP_CallAction.UpdateDynamicSchedule,
+          {
+            chargingProfileId: existingProfileId,
+            scheduleUpdate,
+          } as OCPP2_1.UpdateDynamicScheduleRequest,
+        );
+        const updateApplied =
+          updateConf.success &&
+          (updateConf.payload as { status?: string } | undefined)?.status === 'Accepted';
+        if (updateApplied) {
+          this._lastAppliedFingerprints.set(fingerprintKey, newFingerprint);
+          results.push({
+            stationId: recommendation.stationId,
+            applied: true,
+            profileId: existingProfileId,
+            success: true,
+            payload: updateConf.payload,
+            reason: null,
+          });
+          await this._persistEmsDecision(tenantId, {
+            siteId: plan.siteId,
+            stationId: recommendation.stationId,
+            evseId: recommendation.evseId,
+            intentMessageId: plan.sourceIntentMessageId,
+            decisionType: 'apply_result',
+            decisionJson: {
+              profileId: existingProfileId,
+              updateDynamic: true,
+              updateConf,
+              recommendation,
+            },
+          });
+          continue;
+        }
+        // Station rejected UpdateDynamicSchedule — clear the cached ID and fall through to Clear+Set.
+        this._activeEmsProfileIds.delete(profileKey);
+        this._logger.warn(
+          `UpdateDynamicSchedule rejected for ${recommendation.stationId} (profileId=${existingProfileId}); falling back to SetChargingProfile`,
+        );
+      }
+
       try {
         await this.sendCall(
           recommendation.stationId,
@@ -396,12 +457,8 @@ export class EmsModule extends AbstractModule {
                       startPeriod: 0,
                       limit: recommendation.limitW,
                       operationMode: recommendation.operationMode as OCPP2_1.OperationModeEnumType,
-                      ...(recommendation.exportAllowed &&
-                      typeof recommendation.dischargeLimitW === 'number'
-                        ? {
-                            // OCPP 2.1 requires dischargeLimit <= 0 (negative means discharge)
-                            dischargeLimit: -Math.abs(recommendation.dischargeLimitW),
-                          }
+                      ...(typeof recommendation.dischargeLimitW === 'number'
+                        ? { dischargeLimit: -Math.abs(recommendation.dischargeLimitW) }
                         : {}),
                     },
                   ],
@@ -477,6 +534,14 @@ export class EmsModule extends AbstractModule {
       // Record the fingerprint only on a successful apply so unchanged limits are detected next time.
       if (applied) {
         this._lastAppliedFingerprints.set(fingerprintKey, newFingerprint);
+        // Track the profile ID so subsequent updates can use UpdateDynamicSchedule instead of Clear+Set.
+        if (
+          protocol === OCPPVersion.OCPP2_1 &&
+          (chargingProfile as OCPP2_1.ChargingProfileType).chargingProfileKind ===
+            OCPP2_1.ChargingProfileKindEnumType.Dynamic
+        ) {
+          this._activeEmsProfileIds.set(profileKey, profileId);
+        }
       }
 
       await this._chargingProfileRepository.createOrUpdateChargingProfile(
