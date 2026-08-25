@@ -79,6 +79,8 @@ export class EmsModule extends AbstractModule {
   // Prevent concurrent applications and debounce rapid MQTT intent bursts per site key.
   private _autoApplyInFlight: Set<string> = new Set();
   private _autoApplyDebounceTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
+  // Last-applied fingerprint per "tenantId:stationId:evseId" to skip unchanged limits.
+  private _lastAppliedFingerprints: Map<string, string> = new Map();
 
   private static _createNoopDeviceModelRepository(): IDeviceModelRepository {
     return {
@@ -288,6 +290,36 @@ export class EmsModule extends AbstractModule {
         continue;
       }
 
+      // Skip the application if the effective limits are unchanged from the last apply.
+      const fingerprintKey = `${tenantId}:${recommendation.stationId}:${recommendation.evseId}`;
+      const newFingerprint = JSON.stringify({
+        limitW: recommendation.limitW,
+        dischargeLimitW: recommendation.dischargeLimitW ?? null,
+        operationMode: recommendation.operationMode ?? null,
+        purpose: recommendation.chargingProfilePurpose,
+        evseId: recommendation.evseId,
+      });
+      if (this._lastAppliedFingerprints.get(fingerprintKey) === newFingerprint) {
+        this._logger.debug(
+          `EMS skipping unchanged profile for ${recommendation.stationId} evse=${recommendation.evseId}`,
+        );
+        results.push({
+          stationId: recommendation.stationId,
+          applied: false,
+          reason: 'No change from last applied profile',
+          success: true,
+        });
+        await this._persistEmsDecision(tenantId, {
+          siteId: plan.siteId,
+          stationId: recommendation.stationId,
+          evseId: recommendation.evseId,
+          intentMessageId: plan.sourceIntentMessageId,
+          decisionType: 'apply_skipped',
+          decisionJson: { reason: 'No change from last applied profile', recommendation },
+        });
+        continue;
+      }
+
       const profileId = await this._chargingProfileRepository.getNextChargingProfileId(
         tenantId,
         recommendation.stationId,
@@ -441,6 +473,11 @@ export class EmsModule extends AbstractModule {
       }
 
       const applied = confirmation.success && isAcceptedResponse(confirmation.payload);
+
+      // Record the fingerprint only on a successful apply so unchanged limits are detected next time.
+      if (applied) {
+        this._lastAppliedFingerprints.set(fingerprintKey, newFingerprint);
+      }
 
       await this._chargingProfileRepository.createOrUpdateChargingProfile(
         tenantId,
