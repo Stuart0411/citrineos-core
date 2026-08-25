@@ -40,6 +40,7 @@ import {
   OCPPVersion,
   RequestBuilder,
   RetryMessageError,
+  RetryMessageErrorCode,
 } from '@citrineos/base';
 import type { ILocationRepository } from '@dal/interfaces/repositories.js';
 import { sequelize } from '@dal/index.js';
@@ -367,7 +368,7 @@ export class MessageRouterImpl extends AbstractMessageRouter implements IMessage
           identifier,
           message,
         );
-        throw new RetryMessageError('Call already in progress');
+        throw new RetryMessageError('Call already in progress', RetryMessageErrorCode.CallInProgress);
       }
     } else {
       this._logger.info('RegistrationStatus Rejected, unable to send', identifier, message);

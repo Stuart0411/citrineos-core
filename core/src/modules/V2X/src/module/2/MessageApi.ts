@@ -51,6 +51,23 @@ export class V2XOcpp2Api extends AbstractModuleApi<V2XModule> implements IV2XMod
       OCPP_CallAction.AFRRSignal,
       request,
       callbackUrl,
-    );
+    ).then(async (confirmations) => {
+      for (let index = 0; index < identifier.length; index++) {
+        if (!confirmations[index]?.success) {
+          continue;
+        }
+
+        try {
+          await this._module.recordAfrrSignalSendAccepted(tenantId, identifier[index]);
+        } catch (error) {
+          this._logger.warn(
+            `Failed to persist AFRR send-accepted telemetry for station ${identifier[index]}`,
+            error,
+          );
+        }
+      }
+
+      return confirmations;
+    });
   }
 }

@@ -254,7 +254,9 @@ export class MeterValueUtils {
         powerOfTen -= 3;
         break;
       default:
-        throw new Error(`Unknown unit for energy measurement: ${unit}`);
+        // Some stations include non-energy sampled values (e.g. SoC in PERCENT)
+        // in transaction meter payloads. Ignore unsupported units for kWh math.
+        return null;
     }
 
     return value.value * 10 ** powerOfTen;

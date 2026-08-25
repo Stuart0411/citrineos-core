@@ -5,9 +5,16 @@
 // Internal types and enums - no imports to avoid circular dependencies
 export type HandlerProperties = string | object | undefined;
 
+export enum RetryMessageErrorCode {
+  CallInProgress = 'call_in_progress',
+}
+
 export class RetryMessageError extends Error {
-  constructor(retryReason: string) {
+  public readonly code?: RetryMessageErrorCode;
+
+  constructor(retryReason: string, code?: RetryMessageErrorCode) {
     super(retryReason);
+    this.code = code;
   }
 }
 

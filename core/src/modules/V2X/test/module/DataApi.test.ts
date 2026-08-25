@@ -10,7 +10,10 @@ import { V2XDataApi } from '../../src/module/DataApi.js';
 vi.spyOn(Reflect, 'getMetadata').mockReturnValue([]);
 
 describe('V2XDataApi', () => {
-  let stationEnergyTransferPolicyRepository: { readAllByQuery: ReturnType<typeof vi.fn> };
+  let stationEnergyTransferPolicyRepository: {
+    readAllByQuery: ReturnType<typeof vi.fn>;
+    upsertAllowedEnergyTransfer: ReturnType<typeof vi.fn>;
+  };
   let summarizeStationCapabilities: ReturnType<typeof vi.fn>;
   let api: V2XDataApi;
 
@@ -19,6 +22,7 @@ describe('V2XDataApi', () => {
 
     stationEnergyTransferPolicyRepository = {
       readAllByQuery: vi.fn().mockResolvedValue([]),
+      upsertAllowedEnergyTransfer: vi.fn().mockResolvedValue(undefined),
     };
     summarizeStationCapabilities = vi.fn().mockReturnValue([{ stationId: 'cs-v2x-7' }]);
 
@@ -153,5 +157,80 @@ describe('V2XDataApi', () => {
       },
     ]);
     expect(result).toEqual([{ stationId: 'cs-v2x-7' }]);
+  });
+
+  it('preserves extended summary observability fields from module summarization', async () => {
+    summarizeStationCapabilities.mockReturnValue([
+      {
+        stationId: 'cs-v2x-7',
+        afrrSignalSendAccepted: true,
+        lastAfrrSignalSendAcceptedAt: '2026-08-19T06:45:00.000Z',
+      },
+    ]);
+
+    const result = await api.getStationEnergyTransferPolicies({
+      query: {
+        tenantId: 7,
+        summary: true,
+      },
+    } as any);
+
+    expect(result).toEqual([
+      {
+        stationId: 'cs-v2x-7',
+        afrrSignalSendAccepted: true,
+        lastAfrrSignalSendAcceptedAt: '2026-08-19T06:45:00.000Z',
+      },
+    ]);
+  });
+
+  it('upserts manual station energy transfer policy overrides', async () => {
+    stationEnergyTransferPolicyRepository.readAllByQuery.mockResolvedValue([
+      {
+        stationId: 'cs-v2x-7',
+        transactionId: '__manual_override__',
+        allowedModesJson: ['AC_BPT_DER'],
+        exportEnabled: true,
+        dischargeLimitW: 3200,
+      },
+    ]);
+
+    const result = await api.upsertStationEnergyTransferPolicyOverride({
+      query: {
+        tenantId: 7,
+      },
+      body: {
+        stationId: 'cs-v2x-7',
+        allowedModes: ['AC_BPT_DER'],
+        exportEnabled: true,
+        dischargeLimitW: 3200,
+      },
+    } as any);
+
+    expect(stationEnergyTransferPolicyRepository.upsertAllowedEnergyTransfer).toHaveBeenCalledWith(
+      7,
+      'cs-v2x-7',
+      {
+        transactionId: '__manual_override__',
+        allowedModesJson: ['AC_BPT_DER'],
+        exportEnabled: true,
+        dischargeLimitW: 3200,
+      },
+    );
+    expect(stationEnergyTransferPolicyRepository.readAllByQuery).toHaveBeenCalledWith(7, {
+      where: {
+        stationId: 'cs-v2x-7',
+        transactionId: '__manual_override__',
+      },
+      order: [['updatedAt', 'DESC']],
+      limit: 1,
+    });
+    expect(result).toEqual({
+      stationId: 'cs-v2x-7',
+      transactionId: '__manual_override__',
+      allowedModesJson: ['AC_BPT_DER'],
+      exportEnabled: true,
+      dischargeLimitW: 3200,
+    });
   });
 });

@@ -191,6 +191,82 @@ describe('OCPPValidator', () => {
 
         expect(result.isValid).toBe(true);
       });
+
+      it('should remap ReportChargingProfiles evseId 0 to 1 for compatibility', () => {
+        const payload: any = {
+          requestId: 166,
+          evseId: 0,
+          chargingLimitSource: 'CSO',
+          chargingProfile: [
+            {
+              id: 93,
+              stackLevel: 0,
+              chargingProfilePurpose: 'TxDefaultProfile',
+              chargingProfileKind: 'Recurring',
+              recurrencyKind: 'Weekly',
+              validFrom: '2023-03-22T00:00:00Z',
+              validTo: '2036-12-31T00:00:00Z',
+              chargingSchedule: [
+                {
+                  id: 2,
+                  startSchedule: '2024-03-04T00:00:00Z',
+                  duration: 604800,
+                  chargingRateUnit: 'W',
+                  chargingSchedulePeriod: [{ startPeriod: 0, limit: 7000 }],
+                },
+              ],
+            },
+          ],
+        };
+
+        const result = validator.validateOCPPRequest(
+          OCPP_CallAction.ReportChargingProfiles,
+          payload,
+          OCPPVersion.OCPP2_0_1,
+        );
+
+        expect(result.isValid).toBe(true);
+        expect(payload.evseId).toBe(1);
+      });
+    });
+
+    describe('OCPP 2.1', () => {
+      it('should remap ReportChargingProfiles evseId 0 to 1 for compatibility', () => {
+        const payload: any = {
+          requestId: 166,
+          evseId: 0,
+          chargingLimitSource: 'CSO',
+          chargingProfile: [
+            {
+              id: 93,
+              stackLevel: 0,
+              chargingProfilePurpose: 'TxDefaultProfile',
+              chargingProfileKind: 'Recurring',
+              recurrencyKind: 'Weekly',
+              validFrom: '2023-03-22T00:00:00Z',
+              validTo: '2036-12-31T00:00:00Z',
+              chargingSchedule: [
+                {
+                  id: 2,
+                  startSchedule: '2024-03-04T00:00:00Z',
+                  duration: 604800,
+                  chargingRateUnit: 'W',
+                  chargingSchedulePeriod: [{ startPeriod: 0, limit: 7000 }],
+                },
+              ],
+            },
+          ],
+        };
+
+        const result = validator.validateOCPPRequest(
+          OCPP_CallAction.ReportChargingProfiles,
+          payload,
+          OCPPVersion.OCPP2_1,
+        );
+
+        expect(result.isValid).toBe(true);
+        expect(payload.evseId).toBe(1);
+      });
     });
 
     describe('OCPP 2.0.1', () => {
@@ -573,6 +649,38 @@ describe('OCPPValidator', () => {
 
       expect(result.items).toHaveLength(2);
       expect(result.items).toEqual(['a', 'b']);
+    });
+
+    it('should remove invalid additionalIdToken entries from idToken.additionalInfo', () => {
+      const payload = {
+        idToken: {
+          idToken: 'ABC123',
+          type: 'Central',
+          additionalInfo: [
+            { additionalIdToken: 'VALID_123', type: 'eMAID' },
+            { additionalIdToken: 'INVALID/ID', type: 'eMAID' },
+          ],
+        },
+      };
+
+      const result = validator.sanitizeOCPPPayload(payload as any);
+
+      expect(result.idToken.additionalInfo).toHaveLength(1);
+      expect(result.idToken.additionalInfo[0].additionalIdToken).toBe('VALID_123');
+    });
+
+    it('should remove additionalInfo when all additionalIdToken entries are invalid', () => {
+      const payload = {
+        idToken: {
+          idToken: 'ABC123',
+          type: 'Central',
+          additionalInfo: [{ additionalIdToken: 'BAD/ID', type: 'eMAID' }],
+        },
+      };
+
+      const result = validator.sanitizeOCPPPayload(payload as any);
+
+      expect(result.idToken.additionalInfo).toBeUndefined();
     });
   });
 

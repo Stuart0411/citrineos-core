@@ -350,6 +350,13 @@ describe('RabbitMqReceiver', () => {
   describe('RabbitMqReceiver — _onMessage', () => {
     let receiver: RabbitMqReceiver;
     let mockChannel: ReturnType<typeof aMockAmqpChannel>;
+    const createCodedRetryError = (message = 'in-flight call conflict') => {
+      const error = new RetryMessageError(message) as RetryMessageError & {
+        code?: string;
+      };
+      error.code = 'call_in_progress';
+      return error;
+    };
 
     beforeEach(() => {
       mockChannel = aMockAmqpChannel();
@@ -393,6 +400,115 @@ describe('RabbitMqReceiver', () => {
     it('should nack and return without acking when handle throws RetryMessageError', async () => {
       vi.spyOn(receiver, 'handle').mockRejectedValueOnce(new RetryMessageError('call in progress'));
       const msg = aConsumeMessage();
+
+      await (receiver as any)._onMessage(msg, mockChannel);
+
+      expect(mockChannel.nack).toHaveBeenCalledWith(msg);
+      expect(mockChannel.ack).not.toHaveBeenCalled();
+    });
+
+    it('should ack a redelivered AFRRSignal call-in-progress retry message instead of requeuing it again', async () => {
+      vi.spyOn(receiver, 'handle').mockRejectedValueOnce(
+        new RetryMessageError('Call already in progress'),
+      );
+      const msg = aConsumeMessage({ action: OCPP_CallAction.AFRRSignal });
+      msg.fields.redelivered = true;
+
+      await (receiver as any)._onMessage(msg, mockChannel);
+
+      expect(mockChannel.ack).toHaveBeenCalledWith(msg);
+      expect(mockChannel.nack).not.toHaveBeenCalled();
+    });
+
+    it('should retry a non-redelivered AFRRSignal call-in-progress error', async () => {
+      vi.spyOn(receiver, 'handle').mockRejectedValueOnce(
+        new RetryMessageError('Call already in progress'),
+      );
+      const msg = aConsumeMessage({ action: OCPP_CallAction.AFRRSignal });
+      msg.fields.redelivered = false;
+
+      await (receiver as any)._onMessage(msg, mockChannel);
+
+      expect(mockChannel.nack).toHaveBeenCalledWith(msg);
+      expect(mockChannel.ack).not.toHaveBeenCalled();
+    });
+
+    it('should retry a redelivered non-AFRR call-in-progress error', async () => {
+      vi.spyOn(receiver, 'handle').mockRejectedValueOnce(
+        new RetryMessageError('Call already in progress'),
+      );
+      const msg = aConsumeMessage({ action: OCPP_CallAction.StatusNotification });
+      msg.fields.redelivered = true;
+
+      await (receiver as any)._onMessage(msg, mockChannel);
+
+      expect(mockChannel.nack).toHaveBeenCalledWith(msg);
+      expect(mockChannel.ack).not.toHaveBeenCalled();
+    });
+
+    it('should treat call-in-progress matching as case-insensitive', async () => {
+      vi.spyOn(receiver, 'handle').mockRejectedValueOnce(
+        new RetryMessageError('CALL ALREADY IN PROGRESS'),
+      );
+      const msg = aConsumeMessage({ action: OCPP_CallAction.AFRRSignal });
+      msg.fields.redelivered = true;
+
+      await (receiver as any)._onMessage(msg, mockChannel);
+
+      expect(mockChannel.ack).toHaveBeenCalledWith(msg);
+      expect(mockChannel.nack).not.toHaveBeenCalled();
+    });
+
+    it('should drop redelivered AFRR call-in-progress retries for underscore-prefixed payload fields too', async () => {
+      vi.spyOn(receiver, 'handle').mockRejectedValueOnce(
+        new RetryMessageError('Call already in progress'),
+      );
+      const msg = aConsumeMessageWithPrefixedFields({ action: OCPP_CallAction.AFRRSignal });
+      msg.fields.redelivered = true;
+
+      await (receiver as any)._onMessage(msg, mockChannel);
+
+      expect(mockChannel.ack).toHaveBeenCalledWith(msg);
+      expect(mockChannel.nack).not.toHaveBeenCalled();
+    });
+
+    it('should drop redelivered AFRR retries when error code is CallInProgress even with a different message', async () => {
+      vi.spyOn(receiver, 'handle').mockRejectedValueOnce(createCodedRetryError());
+      const msg = aConsumeMessage({ action: OCPP_CallAction.AFRRSignal });
+      msg.fields.redelivered = true;
+
+      await (receiver as any)._onMessage(msg, mockChannel);
+
+      expect(mockChannel.ack).toHaveBeenCalledWith(msg);
+      expect(mockChannel.nack).not.toHaveBeenCalled();
+    });
+
+    it('should retry non-redelivered AFRR retries even when error code is CallInProgress', async () => {
+      vi.spyOn(receiver, 'handle').mockRejectedValueOnce(createCodedRetryError());
+      const msg = aConsumeMessage({ action: OCPP_CallAction.AFRRSignal });
+      msg.fields.redelivered = false;
+
+      await (receiver as any)._onMessage(msg, mockChannel);
+
+      expect(mockChannel.nack).toHaveBeenCalledWith(msg);
+      expect(mockChannel.ack).not.toHaveBeenCalled();
+    });
+
+    it('should retry redelivered non-AFRR retries even when error code is CallInProgress', async () => {
+      vi.spyOn(receiver, 'handle').mockRejectedValueOnce(createCodedRetryError());
+      const msg = aConsumeMessage({ action: OCPP_CallAction.StatusNotification });
+      msg.fields.redelivered = true;
+
+      await (receiver as any)._onMessage(msg, mockChannel);
+
+      expect(mockChannel.nack).toHaveBeenCalledWith(msg);
+      expect(mockChannel.ack).not.toHaveBeenCalled();
+    });
+
+    it('should keep retrying redelivered AFRRSignal messages for other retryable errors', async () => {
+      vi.spyOn(receiver, 'handle').mockRejectedValueOnce(new RetryMessageError('temporary outage'));
+      const msg = aConsumeMessage({ action: OCPP_CallAction.AFRRSignal });
+      msg.fields.redelivered = true;
 
       await (receiver as any)._onMessage(msg, mockChannel);
 

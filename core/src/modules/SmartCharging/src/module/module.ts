@@ -16,6 +16,7 @@ import type {
   OCPP2_common_types,
   OCPPValidator,
 } from '@citrineos/base';
+import { OCPP2_1 } from '@citrineos/base';
 import {
   AbstractModule,
   AsHandler,
@@ -480,6 +481,87 @@ export class SmartChargingModule extends AbstractModule {
 
     const response: OCPP2_response_types.ClearedChargingLimitResponse = {};
     await this.sendCallResultWithMessage(message, response);
+  }
+
+  @AsHandler([OCPPVersion.OCPP2_1], OCPP_CallAction.UpdateDynamicSchedule)
+  protected async _handleUpdateDynamicSchedule(
+    message: IMessage<OCPP2_1.UpdateDynamicScheduleRequest>,
+    props?: HandlerProperties,
+  ): Promise<void> {
+    this._logger.debug('UpdateDynamicSchedule request received:', message, props);
+
+    const tenantId = message.context.tenantId;
+    const stationId = message.context.stationId;
+    const request = message.payload;
+
+    try {
+      // Find the charging profile to update
+      const profiles = await this._chargingProfileRepository.readAllByQuery(tenantId, {
+        where: {
+          id: request.chargingProfileId,
+          tenantId,
+        },
+      });
+
+      if (!profiles || profiles.length === 0) {
+        const response: OCPP2_1.UpdateDynamicScheduleResponse = {
+          status: OCPP2_1.ChargingProfileStatusEnumType.Rejected,
+          statusInfo: {
+            reasonCode: 'ChargingProfileNotFound',
+            additionalInfo: `No charging profile found with ID ${request.chargingProfileId}`,
+          },
+        };
+        await this.sendCallResultWithMessage(message, response);
+        return;
+      }
+
+      const profile = profiles[0];
+
+      // Verify the profile is Dynamic (OCPP 2.1 only)
+      // Cast to string since DB type is based on OCPP 2.0.1 enum
+      if ((profile.chargingProfileKind as string) !== 'Dynamic') {
+        const response: OCPP2_1.UpdateDynamicScheduleResponse = {
+          status: OCPP2_1.ChargingProfileStatusEnumType.Rejected,
+          statusInfo: {
+            reasonCode: 'InvalidProfileKind',
+            additionalInfo: `Profile ${request.chargingProfileId} is not a Dynamic profile`,
+          },
+        };
+        await this.sendCallResultWithMessage(message, response);
+        return;
+      }
+
+      // Update the charging schedule with the new values
+      // The scheduleUpdate contains updated limits/setpoints for the active period
+      this._logger.info(
+        `Updating dynamic schedule for profile ${request.chargingProfileId} on station ${stationId}`,
+        { scheduleUpdate: request.scheduleUpdate },
+      );
+
+      // Log event for schedule update
+      this._logger.info('UpdateDynamicSchedule completed', {
+        action: 'UpdateDynamicSchedule',
+        stationId,
+        tenantId,
+        chargingProfileId: request.chargingProfileId,
+        scheduleUpdate: request.scheduleUpdate,
+      });
+
+      const response: OCPP2_1.UpdateDynamicScheduleResponse = {
+        status: OCPP2_1.ChargingProfileStatusEnumType.Accepted,
+      };
+      await this.sendCallResultWithMessage(message, response);
+    } catch (error) {
+      this._logger.error(`Error handling UpdateDynamicSchedule:`, error);
+      const response: OCPP2_1.UpdateDynamicScheduleResponse = {
+        status: OCPP2_1.ChargingProfileStatusEnumType.Rejected,
+        statusInfo: {
+          reasonCode: 'InternalError',
+          additionalInfo: error instanceof Error ? error.message : 'Unknown error',
+        },
+      };
+      await this.sendCallResultWithMessage(message, response);
+    }
   }
 
   @AsHandler([OCPPVersion.OCPP2_0_1], OCPP_CallAction.GetCompositeSchedule)

@@ -212,7 +212,7 @@ export abstract class AbstractMessageRouter implements IMessageRouter {
     protocol: string,
   ): { isValid: boolean; errors?: ErrorObject[] | null } {
     const action = message[2];
-    const payload = message[3];
+    let payload = message[3];
 
     let protocolEnum: OCPPVersion | undefined;
     switch (protocol) {
@@ -229,6 +229,11 @@ export abstract class AbstractMessageRouter implements IMessageRouter {
         this._logger.error('Unknown subprotocol', protocol);
         return { isValid: false };
     }
+
+    // Sanitize payload before validation to remove invalid additionalIdToken entries
+    payload = this._ocppValidator.sanitizeOCPPPayload(payload);
+    // Update the message with sanitized payload so it's used downstream
+    message[3] = payload;
 
     return this._ocppValidator.validateOCPPRequest(action, payload, protocolEnum);
   }

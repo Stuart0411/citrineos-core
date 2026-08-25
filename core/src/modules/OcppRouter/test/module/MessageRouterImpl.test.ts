@@ -28,6 +28,7 @@ import {
   OCPPVersion,
   RequestBuilder,
   RetryMessageError,
+  RetryMessageErrorCode,
 } from '@citrineos/base';
 import type { ILocationRepository } from '@citrineos/core';
 import { afterEach, beforeEach, describe, expect, it, type Mocked, vi } from 'vitest';
@@ -561,9 +562,14 @@ describe('MessageRouterImpl', () => {
       cache.get.mockResolvedValue(null); // not rejected
       cache.existsAnyInNamespace.mockResolvedValue(true); // call in progress
 
-      await expect(
-        router.sendCall(STATION_ID, TENANT_ID, PROTOCOL, action, payload, CORRELATION_ID),
-      ).rejects.toThrow(RetryMessageError);
+      try {
+        await router.sendCall(STATION_ID, TENANT_ID, PROTOCOL, action, payload, CORRELATION_ID);
+        expect.fail('Expected sendCall to throw RetryMessageError');
+      } catch (error) {
+        expect(error).toBeInstanceOf(RetryMessageError);
+        expect((error as Error).message).toBe('Call already in progress');
+        expect((error as RetryMessageError).code).toBe(RetryMessageErrorCode.CallInProgress);
+      }
     });
 
     it('should return success false when boot status is Rejected', async () => {

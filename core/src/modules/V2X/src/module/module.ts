@@ -89,7 +89,10 @@ export class V2XModule extends AbstractModule {
 
     if (this._isCallErrorPayload(message.payload)) {
       await this._persistAfrrSignalCallError(message);
+      return;
     }
+
+    await this._persistAfrrSignalDispatchSuccess(message);
   }
 
   private _isCallErrorPayload(payload: unknown): payload is {
@@ -155,6 +158,83 @@ export class V2XModule extends AbstractModule {
     );
   }
 
+  private async _persistAfrrSignalDispatchSuccess(message: IMessage<OCPP2_1.AFRRSignalResponse>) {
+    const existingDiagnosticRow =
+      await this._stationEnergyTransferPolicyRepository.readOnlyOneByQuery(
+        message.context.tenantId,
+        {
+          where: {
+            stationId: message.context.stationId,
+            transactionId: V2XModule.DIAGNOSTIC_TRANSACTION_ID,
+          },
+          order: [['updatedAt', 'DESC']],
+          limit: 1,
+        },
+      );
+
+    const timeoutCount =
+      typeof existingDiagnosticRow?.dischargeLimitW === 'number'
+        ? existingDiagnosticRow.dischargeLimitW
+        : 0;
+
+    await this._stationEnergyTransferPolicyRepository.upsertAllowedEnergyTransfer(
+      message.context.tenantId,
+      message.context.stationId,
+      {
+        transactionId: V2XModule.DIAGNOSTIC_TRANSACTION_ID,
+        allowedModesJson: [
+          '__diag__',
+          'afrr_signal_dispatch_ok',
+          `correlation_id:${message.context.correlationId}`,
+        ],
+        exportEnabled: false,
+        dischargeLimitW: timeoutCount,
+      },
+    );
+  }
+
+  async recordAfrrSignalSendAccepted(tenantId: number, stationId: string): Promise<void> {
+    const existingDiagnosticRow = await this._stationEnergyTransferPolicyRepository.readOnlyOneByQuery(
+      tenantId,
+      {
+        where: {
+          stationId,
+          transactionId: V2XModule.DIAGNOSTIC_TRANSACTION_ID,
+        },
+        order: [['updatedAt', 'DESC']],
+        limit: 1,
+      },
+    );
+
+    const timeoutCount =
+      typeof existingDiagnosticRow?.dischargeLimitW === 'number'
+        ? existingDiagnosticRow.dischargeLimitW
+        : 0;
+
+    const priorTags = Array.isArray(existingDiagnosticRow?.allowedModesJson)
+      ? (existingDiagnosticRow.allowedModesJson as string[])
+      : [];
+
+    // Keep existing call-error context until a proper AFRR response overwrites it.
+    const preservedErrorTags = priorTags.filter(
+      (tag) =>
+        tag === 'afrr_signal_call_error' ||
+        tag.startsWith('error_code:') ||
+        tag.startsWith('error_message:'),
+    );
+
+    await this._stationEnergyTransferPolicyRepository.upsertAllowedEnergyTransfer(
+      tenantId,
+      stationId,
+      {
+        transactionId: V2XModule.DIAGNOSTIC_TRANSACTION_ID,
+        allowedModesJson: ['__diag__', 'afrr_signal_send_accepted', ...preservedErrorTags],
+        exportEnabled: false,
+        dischargeLimitW: timeoutCount,
+      },
+    );
+  }
+
   private _isExportEnabled(allowedModes: string[]): boolean {
     return allowedModes.some((mode) => mode.includes('BPT'));
   }
@@ -191,6 +271,8 @@ export class V2XModule extends AbstractModule {
       const diagnosticTags = Array.isArray(diagnosticRow?.allowedModesJson)
         ? (diagnosticRow.allowedModesJson as string[])
         : [];
+      const hasCallError = diagnosticTags.includes('afrr_signal_call_error');
+      const hasSendAccepted = diagnosticTags.includes('afrr_signal_send_accepted');
 
       const timeoutCount =
         typeof diagnosticRow?.dischargeLimitW === 'number' ? diagnosticRow.dischargeLimitW : 0;
@@ -214,9 +296,20 @@ export class V2XModule extends AbstractModule {
           typeof latestPolicyRow?.dischargeLimitW === 'number'
             ? latestPolicyRow.dischargeLimitW
             : null,
-        afrrSignalDispatchUnavailable: Boolean(diagnosticRow),
+        afrrSignalDispatchUnavailable: hasCallError,
         afrrSignalTimeoutCount: timeoutCount,
-        lastAfrrSignalError: diagnosticRow
+        afrrSignalSendAccepted: hasSendAccepted,
+        lastAfrrSignalDispatchAt: diagnosticRow
+          ? (typeof diagnosticRow.updatedAt === 'string' && diagnosticRow.updatedAt) ||
+            (diagnosticRow.updatedAt instanceof Date && diagnosticRow.updatedAt.toISOString()) ||
+            null
+          : null,
+        lastAfrrSignalSendAcceptedAt: hasSendAccepted && diagnosticRow
+          ? (typeof diagnosticRow.updatedAt === 'string' && diagnosticRow.updatedAt) ||
+            (diagnosticRow.updatedAt instanceof Date && diagnosticRow.updatedAt.toISOString()) ||
+            null
+          : null,
+        lastAfrrSignalError: hasCallError && diagnosticRow
           ? {
               at:
                 (typeof diagnosticRow.updatedAt === 'string' && diagnosticRow.updatedAt) ||

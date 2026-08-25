@@ -22,6 +22,7 @@ import { SalesTariff } from '../model/ChargingProfile/SalesTariff.js';
 import { Evse } from '../model/Location/Evse.js';
 import { EvseType } from '../model/DeviceModel/EvseType.js';
 import { Transaction } from '../model/TransactionEvent/Transaction.js';
+import { UniqueConstraintError } from 'sequelize';
 import { Sequelize } from 'sequelize-typescript';
 import type { ILogObj } from 'tslog';
 import { Logger } from 'tslog';
@@ -30,6 +31,10 @@ export class SequelizeChargingProfileRepository
   extends SequelizeRepository<ChargingProfile>
   implements IChargingProfileRepository
 {
+  private _isDeleteCountMismatchError(error: unknown): boolean {
+    return error instanceof Error && /^Deleted \d+ entries, expected \d+$/.test(error.message);
+  }
+
   chargingNeeds: CrudRepository<ChargingNeeds>;
   chargingSchedule: CrudRepository<ChargingSchedule>;
   salesTariff: CrudRepository<SalesTariff>;
@@ -102,6 +107,12 @@ export class SequelizeChargingProfileRepository
     chargingLimitSource?: ChargingLimitSourceEnumType,
     isActive?: boolean,
   ): Promise<ChargingProfile> {
+    const {
+      transactionId: _transactionId,
+      chargingSchedule: chargingSchedules,
+      ...chargingProfileModelFields
+    } = chargingProfile;
+
     let transactionDBId;
     if (chargingProfile.transactionId) {
       const activeTransaction = await Transaction.findOne({
@@ -120,7 +131,7 @@ export class SequelizeChargingProfileRepository
         id: chargingProfile.id,
       },
       defaults: {
-        ...chargingProfile,
+        ...chargingProfileModelFields,
         stationId: stationId,
         evseId: evseId,
         transactionDatabaseId: transactionDBId,
@@ -132,11 +143,7 @@ export class SequelizeChargingProfileRepository
       await this.updateByKey(
         tenantId,
         {
-          ...chargingProfile,
-          chargingSchedule: chargingProfile.chargingSchedule.map((s) => ({ ...s })) as
-            | [ChargingSchedule]
-            | [ChargingSchedule, ChargingSchedule]
-            | [ChargingSchedule, ChargingSchedule, ChargingSchedule],
+          ...chargingProfileModelFields,
           stationId: stationId,
           transactionDatabaseId: transactionDBId,
           evseId: evseId,
@@ -146,30 +153,78 @@ export class SequelizeChargingProfileRepository
         savedChargingProfile.databaseId.toString(),
       );
       // delete existed charging schedules and sales tariff
-      const deletedChargingSchedules = await this.chargingSchedule.deleteAllByQuery(tenantId, {
-        where: {
-          chargingProfileDatabaseId: savedChargingProfile.databaseId,
-        },
-      });
-      for (const deletedSchedule of deletedChargingSchedules) {
-        await this.salesTariff.deleteAllByQuery(tenantId, {
+      let deletedChargingSchedules: ChargingSchedule[] = [];
+      try {
+        deletedChargingSchedules = await this.chargingSchedule.deleteAllByQuery(tenantId, {
           where: {
-            chargingScheduleDatabaseId: deletedSchedule.databaseId,
+            chargingProfileDatabaseId: savedChargingProfile.databaseId,
           },
         });
+      } catch (error) {
+        if (!this._isDeleteCountMismatchError(error)) {
+          throw error;
+        }
+        this.logger.warn(
+          `ChargingSchedule delete count mismatch during profile refresh for station ${stationId} profile ${chargingProfile.id}. Continuing with idempotent cleanup.`,
+        );
+      }
+
+      for (const deletedSchedule of deletedChargingSchedules) {
+        try {
+          await this.salesTariff.deleteAllByQuery(tenantId, {
+            where: {
+              chargingScheduleDatabaseId: deletedSchedule.databaseId,
+            },
+          });
+        } catch (error) {
+          if (!this._isDeleteCountMismatchError(error)) {
+            throw error;
+          }
+          this.logger.warn(
+            `SalesTariff delete count mismatch during profile refresh for station ${stationId} schedule ${deletedSchedule.databaseId}. Continuing with idempotent cleanup.`,
+          );
+        }
       }
     }
 
-    for (const chargingSchedule of chargingProfile.chargingSchedule) {
-      const savedChargingSchedule = await this.chargingSchedule.create(
-        tenantId,
-        ChargingSchedule.build({
+    for (const chargingSchedule of chargingSchedules) {
+      let scheduleInput = { ...chargingSchedule };
+      let savedChargingSchedule: ChargingSchedule;
+
+      try {
+        savedChargingSchedule = await this.chargingSchedule.create(
           tenantId,
-          stationId,
-          chargingProfileDatabaseId: savedChargingProfile.databaseId,
-          ...chargingSchedule,
-        }),
-      );
+          ChargingSchedule.build({
+            tenantId,
+            stationId,
+            chargingProfileDatabaseId: savedChargingProfile.databaseId,
+            ...scheduleInput,
+          }),
+        );
+      } catch (error) {
+        if (error instanceof UniqueConstraintError) {
+          const remappedScheduleId = await this.getNextChargingScheduleId(tenantId, stationId);
+          this.logger.warn(
+            `ChargingSchedule id ${scheduleInput.id} already exists for station ${stationId}. Retrying with remapped id ${remappedScheduleId}.`,
+          );
+          scheduleInput = {
+            ...scheduleInput,
+            id: remappedScheduleId,
+          };
+          savedChargingSchedule = await this.chargingSchedule.create(
+            tenantId,
+            ChargingSchedule.build({
+              tenantId,
+              stationId,
+              chargingProfileDatabaseId: savedChargingProfile.databaseId,
+              ...scheduleInput,
+            }),
+          );
+        } else {
+          throw error;
+        }
+      }
+
       if (chargingSchedule.salesTariff) {
         await this.salesTariff.create(
           tenantId,

@@ -68,22 +68,30 @@ export class TransactionService {
     transaction: Transaction,
     newMeterValues: MeterValueDto[],
   ): Promise<number> {
-    let meterStart = transaction.meterStart;
-    if (meterStart === null || meterStart === undefined) {
-      meterStart = MeterValueUtils.getMeterStart(newMeterValues);
-      transaction.set('meterStart', meterStart);
+    try {
+      let meterStart = transaction.meterStart;
+      if (meterStart === null || meterStart === undefined) {
+        meterStart = MeterValueUtils.getMeterStart(newMeterValues);
+        transaction.set('meterStart', meterStart);
+      }
+      const totalKwh = MeterValueUtils.getTotalKwh(
+        newMeterValues,
+        transaction.totalKwh ?? 0,
+        meterStart ?? undefined,
+      );
+
+      transaction.set('totalKwh', totalKwh);
+      await transaction.save();
+
+      this._logger.debug(`Recalculated ${totalKwh} kWh for ${transaction.id} transaction`);
+      return totalKwh;
+    } catch (error: any) {
+      const fallbackTotal = transaction.totalKwh ?? 0;
+      this._logger.warn(
+        `Failed to recalculate totalKwh for transaction ${transaction.id}. Keeping prior value ${fallbackTotal}. Error: ${error?.message ?? error}`,
+      );
+      return fallbackTotal;
     }
-    const totalKwh = MeterValueUtils.getTotalKwh(
-      newMeterValues,
-      transaction.totalKwh ?? 0,
-      meterStart ?? undefined,
-    );
-
-    transaction.set('totalKwh', totalKwh);
-    await transaction.save();
-
-    this._logger.debug(`Recalculated ${totalKwh} kWh for ${transaction.id} transaction`);
-    return totalKwh;
   }
 
   async authorizeOcpp201IdToken(

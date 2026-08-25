@@ -40,6 +40,7 @@ export {
   MessageOrigin,
   MessageState,
   RetryMessageError,
+  RetryMessageErrorCode,
 } from './src/interfaces/messages/index.js';
 export type {
   HandlerProperties,
@@ -152,6 +153,9 @@ export * from './src/interfaces/dto/charging.station.sequence.dto.js';
 export * from './src/interfaces/dto/component.dto.js';
 export * from './src/interfaces/dto/composite.schedule.dto.js';
 export * from './src/interfaces/dto/connector.dto.js';
+export * from './src/interfaces/dto/ems.charging.plan.dto.js';
+export * from './src/interfaces/dto/ems.intake.event.dto.js';
+export * from './src/interfaces/dto/ems.site.intent.dto.js';
 export * from './src/interfaces/dto/event.data.dto.js';
 export * from './src/interfaces/dto/evse.dto.js';
 export * from './src/interfaces/dto/evse.type.dto.js';

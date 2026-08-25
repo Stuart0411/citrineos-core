@@ -149,6 +149,10 @@ export const OCPP2_1_CALL_SCHEMA_RECORD: Record<string, object> = {
   [OCPP_CallAction.MeterValues]: OCPP2_1.MeterValuesRequestSchema,
   [OCPP_CallAction.NotifyChargingLimit]: OCPP2_1.NotifyChargingLimitRequestSchema,
   [OCPP_CallAction.NotifyCustomerInformation]: OCPP2_1.NotifyCustomerInformationRequestSchema,
+  [OCPP_CallAction.NotifyAllowedEnergyTransfer]:
+    OCPP2_1.NotifyAllowedEnergyTransferRequestSchema,
+  [OCPP_CallAction.NotifyDERAlarm]: OCPP2_1.NotifyDERAlarmRequestSchema,
+  [OCPP_CallAction.NotifyDERStartStop]: OCPP2_1.NotifyDERStartStopRequestSchema,
 
   [OCPP_CallAction.NotifyDisplayMessages]: OCPP2_1.NotifyDisplayMessagesRequestSchema,
   [OCPP_CallAction.NotifyEVChargingNeeds]: OCPP2_1.NotifyEVChargingNeedsRequestSchema,
@@ -161,6 +165,7 @@ export const OCPP2_1_CALL_SCHEMA_RECORD: Record<string, object> = {
     OCPP2_1.PublishFirmwareStatusNotificationRequestSchema,
 
   [OCPP_CallAction.ReportChargingProfiles]: OCPP2_1.ReportChargingProfilesRequestSchema,
+  [OCPP_CallAction.ReportDERControl]: OCPP2_1.ReportDERControlRequestSchema,
   [OCPP_CallAction.RequestStartTransaction]: OCPP2_1.RequestStartTransactionRequestSchema,
   [OCPP_CallAction.RequestStopTransaction]: OCPP2_1.RequestStopTransactionRequestSchema,
   [OCPP_CallAction.ReservationStatusUpdate]: OCPP2_1.ReservationStatusUpdateRequestSchema,
@@ -169,6 +174,7 @@ export const OCPP2_1_CALL_SCHEMA_RECORD: Record<string, object> = {
   [OCPP_CallAction.SecurityEventNotification]: OCPP2_1.SecurityEventNotificationRequestSchema,
 
   [OCPP_CallAction.SendLocalList]: OCPP2_1.SendLocalListRequestSchema,
+  [OCPP_CallAction.SetDERControl]: OCPP2_1.SetDERControlRequestSchema,
   [OCPP_CallAction.SetChargingProfile]: OCPP2_1.SetChargingProfileRequestSchema,
   [OCPP_CallAction.SetDisplayMessage]: OCPP2_1.SetDisplayMessageRequestSchema,
   [OCPP_CallAction.SetMonitoringBase]: OCPP2_1.SetMonitoringBaseRequestSchema,
@@ -181,8 +187,12 @@ export const OCPP2_1_CALL_SCHEMA_RECORD: Record<string, object> = {
   [OCPP_CallAction.TransactionEvent]: OCPP2_1.TransactionEventRequestSchema,
   [OCPP_CallAction.TriggerMessage]: OCPP2_1.TriggerMessageRequestSchema,
   [OCPP_CallAction.UnlockConnector]: OCPP2_1.UnlockConnectorRequestSchema,
+  [OCPP_CallAction.GetDERControl]: OCPP2_1.GetDERControlRequestSchema,
+  [OCPP_CallAction.ClearDERControl]: OCPP2_1.ClearDERControlRequestSchema,
+  [OCPP_CallAction.AFRRSignal]: OCPP2_1.AFRRSignalRequestSchema,
   [OCPP_CallAction.SetDefaultTariff]: OCPP2_1.SetDefaultTariffRequestSchema,
   [OCPP_CallAction.UnpublishFirmware]: OCPP2_1.UnpublishFirmwareRequestSchema,
+  [OCPP_CallAction.UpdateDynamicSchedule]: OCPP2_1.UpdateDynamicScheduleRequestSchema,
   [OCPP_CallAction.UpdateFirmware]: OCPP2_1.UpdateFirmwareRequestSchema,
   [OCPP_CallAction.VatNumberValidation]: OCPP2_1.VatNumberValidationRequestSchema,
 };
@@ -325,6 +335,10 @@ export const OCPP2_1_CALL_RESULT_SCHEMA_RECORD: Record<string, object> = {
   [OCPP_CallAction.MeterValues]: OCPP2_1.MeterValuesResponseSchema,
   [OCPP_CallAction.NotifyChargingLimit]: OCPP2_1.NotifyChargingLimitResponseSchema,
   [OCPP_CallAction.NotifyCustomerInformation]: OCPP2_1.NotifyCustomerInformationResponseSchema,
+  [OCPP_CallAction.NotifyAllowedEnergyTransfer]:
+    OCPP2_1.NotifyAllowedEnergyTransferResponseSchema,
+  [OCPP_CallAction.NotifyDERAlarm]: OCPP2_1.NotifyDERAlarmResponseSchema,
+  [OCPP_CallAction.NotifyDERStartStop]: OCPP2_1.NotifyDERStartStopResponseSchema,
   [OCPP_CallAction.NotifyDisplayMessages]: OCPP2_1.NotifyDisplayMessagesResponseSchema,
   [OCPP_CallAction.NotifyEVChargingNeeds]: OCPP2_1.NotifyEVChargingNeedsResponseSchema,
   [OCPP_CallAction.NotifyEVChargingSchedule]: OCPP2_1.NotifyEVChargingScheduleResponseSchema,
@@ -335,6 +349,7 @@ export const OCPP2_1_CALL_RESULT_SCHEMA_RECORD: Record<string, object> = {
   [OCPP_CallAction.PublishFirmwareStatusNotification]:
     OCPP2_1.PublishFirmwareStatusNotificationResponseSchema,
   [OCPP_CallAction.ReportChargingProfiles]: OCPP2_1.ReportChargingProfilesResponseSchema,
+  [OCPP_CallAction.ReportDERControl]: OCPP2_1.ReportDERControlResponseSchema,
   [OCPP_CallAction.RequestStartTransaction]: OCPP2_1.RequestStartTransactionResponseSchema,
   [OCPP_CallAction.RequestStopTransaction]: OCPP2_1.RequestStopTransactionResponseSchema,
   [OCPP_CallAction.ReservationStatusUpdate]: OCPP2_1.ReservationStatusUpdateResponseSchema,
@@ -342,6 +357,7 @@ export const OCPP2_1_CALL_RESULT_SCHEMA_RECORD: Record<string, object> = {
   [OCPP_CallAction.Reset]: OCPP2_1.ResetResponseSchema,
   [OCPP_CallAction.SecurityEventNotification]: OCPP2_1.SecurityEventNotificationResponseSchema,
   [OCPP_CallAction.SendLocalList]: OCPP2_1.SendLocalListResponseSchema,
+  [OCPP_CallAction.SetDERControl]: OCPP2_1.SetDERControlResponseSchema,
   [OCPP_CallAction.SetChargingProfile]: OCPP2_1.SetChargingProfileResponseSchema,
   [OCPP_CallAction.SetDisplayMessage]: OCPP2_1.SetDisplayMessageResponseSchema,
   [OCPP_CallAction.SetMonitoringBase]: OCPP2_1.SetMonitoringBaseResponseSchema,
@@ -354,8 +370,12 @@ export const OCPP2_1_CALL_RESULT_SCHEMA_RECORD: Record<string, object> = {
   [OCPP_CallAction.TransactionEvent]: OCPP2_1.TransactionEventResponseSchema,
   [OCPP_CallAction.TriggerMessage]: OCPP2_1.TriggerMessageResponseSchema,
   [OCPP_CallAction.UnlockConnector]: OCPP2_1.UnlockConnectorResponseSchema,
+  [OCPP_CallAction.GetDERControl]: OCPP2_1.GetDERControlResponseSchema,
+  [OCPP_CallAction.ClearDERControl]: OCPP2_1.ClearDERControlResponseSchema,
+  [OCPP_CallAction.AFRRSignal]: OCPP2_1.AFRRSignalResponseSchema,
   [OCPP_CallAction.SetDefaultTariff]: OCPP2_1.SetDefaultTariffResponseSchema,
   [OCPP_CallAction.UnpublishFirmware]: OCPP2_1.UnpublishFirmwareResponseSchema,
+  [OCPP_CallAction.UpdateDynamicSchedule]: OCPP2_1.UpdateDynamicScheduleResponseSchema,
   [OCPP_CallAction.UpdateFirmware]: OCPP2_1.UpdateFirmwareResponseSchema,
   [OCPP_CallAction.VatNumberValidation]: OCPP2_1.VatNumberValidationResponseSchema,
 };

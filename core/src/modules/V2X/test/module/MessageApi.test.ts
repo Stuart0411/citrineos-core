@@ -31,6 +31,7 @@ describe('V2XOcpp2Api', () => {
           },
         },
       },
+      recordAfrrSignalSendAccepted: vi.fn().mockResolvedValue(undefined),
     };
 
     api = new V2XOcpp2Api(moduleMock, {} as any, OCPPVersion.OCPP2_1);
@@ -53,6 +54,24 @@ describe('V2XOcpp2Api', () => {
       request,
       undefined,
     );
+    expect(moduleMock.recordAfrrSignalSendAccepted).toHaveBeenCalledWith(
+      DEFAULT_TENANT_ID,
+      'cs-v2x-1',
+    );
     expect(result).toEqual([{ success: true, payload: 'ok' }]);
+  });
+
+  it('does not persist send-accepted telemetry for failed confirmations', async () => {
+    packageGroupCallMock.mockResolvedValue([{ success: false, payload: 'busy' }]);
+
+    const request = {
+      timestamp: '2026-08-18T18:45:00.000Z',
+      signal: 12,
+    } as any;
+
+    const result = await api.afrrSignal(['cs-v2x-1'], request);
+
+    expect(moduleMock.recordAfrrSignalSendAccepted).not.toHaveBeenCalled();
+    expect(result).toEqual([{ success: false, payload: 'busy' }]);
   });
 });

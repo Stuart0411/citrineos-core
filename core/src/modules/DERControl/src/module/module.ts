@@ -209,6 +209,11 @@ export class DerControlModule extends AbstractModule {
   ): Promise<void> {
     this._logger.debug('GetDERControl response received:', message, props);
 
+    if (this._isCallErrorPayload(message.payload)) {
+      await this._persistGetDerControlFallback(message);
+      return;
+    }
+
     await this._persistResponseEvent(message.context.tenantId, message.context.stationId, {
       eventType: 'get_der_control_response',
       payload: message.payload as unknown as Record<string, unknown>,
@@ -221,6 +226,119 @@ export class DerControlModule extends AbstractModule {
       OCPP_CallAction.GetDERControl,
       message.payload as unknown as Record<string, unknown>,
     );
+  }
+
+  private _isCallErrorPayload(payload: unknown): payload is {
+    name?: string;
+    message?: string;
+    _errorCode?: string;
+    _errorDetails?: Record<string, unknown>;
+  } {
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+      return false;
+    }
+
+    const candidate = payload as Record<string, unknown>;
+    return (
+      typeof candidate._errorCode === 'string' ||
+      candidate.name === 'OcppError' ||
+      (typeof candidate.message === 'string' && typeof candidate._errorDetails === 'object')
+    );
+  }
+
+  private async _persistGetDerControlFallback(
+    message: IMessage<OCPP2_1.GetDERControlResponse>,
+  ): Promise<void> {
+    const tenantId = message.context.tenantId;
+    const stationId = message.context.stationId;
+    const now = new Date();
+
+    const payload = message.payload as unknown as {
+      message?: string;
+      _errorCode?: string;
+      _errorDetails?: Record<string, unknown>;
+    };
+
+    const request = message.context.correlationId
+      ? await this._ocppMessageRepository.getRequestByCorrelationId(
+          tenantId,
+          message.context.correlationId,
+        )
+      : undefined;
+
+    const requestPayload = request ? this._extractRequestPayload(request.message) : undefined;
+    const requestId = typeof requestPayload?.requestId === 'number' ? requestPayload.requestId : -1;
+
+    const existingCapability = await this._stationDerCapabilityRepository.readOnlyOneByQuery(
+      tenantId,
+      {
+        where: {
+          stationId,
+        },
+        order: [['updatedAt', 'DESC']],
+        limit: 1,
+      },
+    );
+
+    const existingSnapshot =
+      existingCapability?.snapshotJson && typeof existingCapability.snapshotJson === 'object'
+        ? (existingCapability.snapshotJson as Record<string, unknown>)
+        : {};
+
+    const existingFallback =
+      existingSnapshot.fallback && typeof existingSnapshot.fallback === 'object'
+        ? (existingSnapshot.fallback as Record<string, unknown>)
+        : {};
+
+    const previousTimeoutCount =
+      typeof existingFallback.timeoutCount === 'number' ? existingFallback.timeoutCount : 0;
+
+    const fallback = {
+      derReadbackUnavailable: true,
+      timeoutCount: previousTimeoutCount + 1,
+      lastGetDerControlError: {
+        at: now.toISOString(),
+        correlationId: message.context.correlationId,
+        errorCode: payload._errorCode ?? 'InternalError',
+        errorDescription: payload.message ?? 'GetDERControl call error',
+        errorDetails: payload._errorDetails ?? {},
+      },
+    };
+
+    const supportedControlTypesJson = Array.isArray(existingCapability?.supportedControlTypesJson)
+      ? existingCapability.supportedControlTypesJson
+      : [];
+
+    const deviceModelSnapshotJson =
+      existingCapability?.deviceModelSnapshotJson &&
+      typeof existingCapability.deviceModelSnapshotJson === 'object'
+        ? (existingCapability.deviceModelSnapshotJson as Record<string, unknown>)
+        : null;
+
+    await this._derEventRepository.createEvent(tenantId, {
+      stationId,
+      eventType: 'get_der_control_call_error',
+      controlId: null,
+      payloadJson: {
+        requestId,
+        correlationId: message.context.correlationId,
+        errorCode: payload._errorCode ?? 'InternalError',
+        errorDescription: payload.message ?? 'GetDERControl call error',
+        errorDetails: payload._errorDetails ?? {},
+      },
+      occurredAt: now,
+    });
+
+    await this._stationDerCapabilityRepository.upsertCapabilitySnapshot(tenantId, stationId, {
+      supportedControlTypesJson,
+      snapshotJson: {
+        ...existingSnapshot,
+        fallback,
+      },
+      requestId,
+      tbc: false,
+      deviceModelSnapshotJson,
+    });
   }
 
   @AsHandler([OCPPVersion.OCPP2_1], OCPP_CallAction.ClearDERControl)
@@ -605,6 +723,25 @@ export class DerControlModule extends AbstractModule {
       deviceModelAttributeCount:
         typeof deviceModelSnapshotJson?.sampledAttributeCount === 'number'
           ? deviceModelSnapshotJson.sampledAttributeCount
+          : 0,
+      derReadbackUnavailable:
+        !!(
+          input.snapshotJson &&
+          typeof input.snapshotJson === 'object' &&
+          (input.snapshotJson as Record<string, unknown>).fallback &&
+          typeof (input.snapshotJson as Record<string, unknown>).fallback === 'object' &&
+          ((input.snapshotJson as Record<string, unknown>).fallback as Record<string, unknown>)
+            .derReadbackUnavailable === true
+        ),
+      derReadbackTimeoutCount:
+        input.snapshotJson &&
+        typeof input.snapshotJson === 'object' &&
+        (input.snapshotJson as Record<string, unknown>).fallback &&
+        typeof (input.snapshotJson as Record<string, unknown>).fallback === 'object' &&
+        typeof ((input.snapshotJson as Record<string, unknown>).fallback as Record<string, unknown>)
+          .timeoutCount === 'number'
+          ? (((input.snapshotJson as Record<string, unknown>).fallback as Record<string, unknown>)
+              .timeoutCount as number)
           : 0,
     };
   }

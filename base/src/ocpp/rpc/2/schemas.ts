@@ -97,6 +97,11 @@ const ocpp2_1_schemas: Record<string, AnySchemaObject> = {
   CostUpdatedRequestSchema: OCPP2_1.CostUpdatedRequestSchema,
   GetTransactionStatusRequestSchema: OCPP2_1.GetTransactionStatusRequestSchema,
   SetDefaultTariffRequestSchema: OCPP2_1.SetDefaultTariffRequestSchema,
+  UpdateDynamicScheduleRequestSchema: OCPP2_1.UpdateDynamicScheduleRequestSchema,
+  SetDERControlRequestSchema: OCPP2_1.SetDERControlRequestSchema,
+  GetDERControlRequestSchema: OCPP2_1.GetDERControlRequestSchema,
+  ClearDERControlRequestSchema: OCPP2_1.ClearDERControlRequestSchema,
+  AFRRSignalRequestSchema: OCPP2_1.AFRRSignalRequestSchema,
 };
 
 const OCPP2_SCHEMA_RECORD: SchemaRecord = {

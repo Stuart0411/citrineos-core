@@ -44,7 +44,7 @@ describe('EmsPolicyEngine', () => {
         {
           id: 'cs-wrong-evse',
           isOnline: true,
-          protocol: OCPPVersion.OCPP2_1,
+          protocol: OCPPVersion.OCPP2_0_1,
           capabilities: ['ChargingProfileCapable'],
           evses: [{ id: 2 }],
         },
@@ -88,13 +88,13 @@ describe('EmsPolicyEngine', () => {
     });
 
     expect(plan).not.toBeNull();
-    expect(plan?.eligibleStationCount).toBe(1);
+    expect(plan?.eligibleStationCount).toBe(2);
     expect(plan?.recommendations).toEqual([
       expect.objectContaining({
         stationId: 'cs-online',
         eligible: true,
         eligibilityReason: null,
-        limitW: 12000,
+        limitW: 6000,
       }),
       expect.objectContaining({
         stationId: 'cs-unsupported',
@@ -111,9 +111,9 @@ describe('EmsPolicyEngine', () => {
       }),
       expect.objectContaining({
         stationId: 'cs-no-profile-capability',
-        eligible: false,
-        eligibilityReason: 'Station does not advertise ChargingProfileCapable capability',
-        limitW: 0,
+        eligible: true,
+        eligibilityReason: null,
+        limitW: 6000,
       }),
       expect.objectContaining({
         stationId: 'cs-wrong-evse',
@@ -370,6 +370,58 @@ describe('EmsPolicyEngine', () => {
         eligible: false,
         eligibilityReason:
           'Station protocol ocpp2.0.1 is not compatible with requested operation mode',
+        limitW: 0,
+      }),
+    ]);
+  });
+
+  it('keeps OCPP 2.0.1 capability gate strict when ChargingProfileCapable is missing', async () => {
+    const emsSiteIntentRepository = {
+      readLatestActiveBySiteId: vi.fn().mockResolvedValue({
+        messageId: 'intent-7',
+        constraints: {
+          evChargeBudgetW: 5000,
+        },
+      }),
+    } as any;
+
+    const locationRepository = {
+      getChargingStationsByIds: vi.fn().mockResolvedValue([
+        {
+          id: 'cs-201-no-capability',
+          isOnline: true,
+          protocol: OCPPVersion.OCPP2_0_1,
+          capabilities: ['RemoteStartStopCapable'],
+          evses: [{ id: 1 }],
+        },
+      ]),
+    } as any;
+
+    const deviceModelRepository = {
+      readAllByQuerystring: vi.fn().mockResolvedValue([{ value: 'true' }]),
+    } as any;
+
+    const engine = new EmsPolicyEngine(
+      emsSiteIntentRepository,
+      locationRepository,
+      deviceModelRepository,
+    );
+
+    const plan = await engine.deriveChargingPlan(1, {
+      siteId: 'site-1',
+      stationIds: ['cs-201-no-capability'],
+      evseId: 1,
+      strategy: 'equal_share_online',
+      chargingProfilePurpose: 'ChargingStationMaxProfile',
+      operationMode: 'ExternalLimits',
+    });
+
+    expect(plan?.eligibleStationCount).toBe(0);
+    expect(plan?.recommendations).toEqual([
+      expect.objectContaining({
+        stationId: 'cs-201-no-capability',
+        eligible: false,
+        eligibilityReason: 'Station does not advertise ChargingProfileCapable capability',
         limitW: 0,
       }),
     ]);

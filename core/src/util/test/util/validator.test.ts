@@ -435,7 +435,7 @@ describe('validateChargingProfileType', () => {
       ).rejects.toThrow(`Transaction ${transactionId} not found on station ${testStationId}.`);
     });
 
-    it('should throw error when evse is not found', async () => {
+    it('should not throw when evse is not found and only one schedule is provided', async () => {
       const transactionId = faker.string.uuid();
       const evseId = 1;
       const chargingProfile = aChargingProfileType({
@@ -463,7 +463,44 @@ describe('validateChargingProfileType', () => {
           mockLogger,
           evseId,
         ),
-      ).rejects.toThrow(`Evse ${evseId} not found.`);
+      ).resolves.not.toThrow();
+    });
+
+    it('should throw when evse is not found and multiple schedules are provided', async () => {
+      const transactionId = faker.string.uuid();
+      const evseId = 1;
+      const chargingProfile = aChargingProfileType({
+        chargingProfilePurpose: OCPP2_0_1.ChargingProfilePurposeEnumType.TxProfile,
+        transactionId,
+        chargingSchedule: [
+          aChargingSchedule({ id: 1 }),
+          aChargingSchedule({ id: 2 }),
+        ],
+      });
+
+      mockTransactionEventRepo.readTransactionByStationIdAndTransactionId.mockResolvedValue(
+        aTransactionEvent({
+          transactionInfo: {
+            transactionId,
+          } as OCPP2_0_1.TransactionType,
+        }),
+      );
+      mockDeviceModelRepo.findEvseByIdAndConnectorId.mockResolvedValue(null);
+
+      await expect(
+        validateChargingProfileType(
+          chargingProfile,
+          testTenantId,
+          testStationId,
+          mockDeviceModelRepo,
+          mockChargingProfileRepo,
+          mockTransactionEventRepo,
+          mockLogger,
+          evseId,
+        ),
+      ).rejects.toThrow(
+        `Evse ${evseId} not found. Multiple ChargingScheduleType entries require EVSE and ChargingNeeds context.`,
+      );
     });
   });
 

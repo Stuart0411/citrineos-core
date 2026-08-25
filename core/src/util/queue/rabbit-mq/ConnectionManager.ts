@@ -7,6 +7,7 @@ import amqp from 'amqplib';
 import { type ILogObj, Logger } from 'tslog';
 
 export class RabbitMQConnectionManager extends AbstractConnectionManager<amqp.Connection> {
+  private static readonly MAX_EVENT_LISTENERS = 30;
   private connection: amqp.Connection | null = null;
   private isConnecting = false;
   private reconnectAttempts = 0;
@@ -18,6 +19,9 @@ export class RabbitMQConnectionManager extends AbstractConnectionManager<amqp.Co
     logger?: Logger<ILogObj>,
   ) {
     super(logger);
+    // Multiple modules legitimately subscribe to broker lifecycle events.
+    // Raise the threshold to avoid false-positive leak warnings in normal runtime wiring.
+    this.setMaxListeners(RabbitMQConnectionManager.MAX_EVENT_LISTENERS);
   }
 
   async connect(): Promise<amqp.Connection> {

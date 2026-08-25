@@ -187,6 +187,7 @@ export class SequelizeLocationRepository
           [Op.in]: stationIds,
         },
       },
+      include: [Evse, Connector],
     };
 
     return this.chargingStation.readAllByQuery(tenantId, query);

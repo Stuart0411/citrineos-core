@@ -62,11 +62,13 @@ export const CertificateUseEnumSchema = z.enum([
 
 export const ChargingLimitSourceEnumSchema = z.enum(['EMS', 'Other', 'SO', 'CSO']);
 
-export const ChargingProfileKindEnumSchema = z.enum(['Absolute', 'Recurring', 'Relative']);
+export const ChargingProfileKindEnumSchema = z.enum(['Absolute', 'Recurring', 'Relative', 'Dynamic']);
 
 export const ChargingProfilePurposeEnumSchema = z.enum([
   'ChargingStationExternalConstraints',
   'ChargingStationMaxProfile',
+  'PriorityCharging',
+  'LocalGeneration',
   'TxDefaultProfile',
   'TxProfile',
 ]);

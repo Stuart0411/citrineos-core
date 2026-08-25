@@ -14,6 +14,7 @@ export enum Namespace {
   ChargingStation = 'ChargingStation',
   CompositeSchedule = 'CompositeSchedule',
   EmsChargingPlan = 'EmsChargingPlan',
+  EmsAutoApply = 'EmsAutoApply',
   EmsMqttBridge = 'EmsMqttBridge',
   EmsDecision = 'EmsDecision',
   DerControl = 'DerControl',

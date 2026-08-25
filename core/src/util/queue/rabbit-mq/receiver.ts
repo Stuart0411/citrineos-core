@@ -2,8 +2,15 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-import type { CallAction, IModule, SystemConfig } from '@citrineos/base';
-import { AbstractMessageHandler, Message, RetryMessageError } from '@citrineos/base';
+import type { CallAction, IModule, OcppRequest, OcppResponse, SystemConfig } from '@citrineos/base';
+import {
+  AbstractMessageHandler,
+  Message,
+  OCPP_CallAction,
+  OcppError,
+  RetryMessageError,
+  RetryMessageErrorCode,
+} from '@citrineos/base';
 import * as amqplib from 'amqplib';
 import type { ILogObj } from 'tslog';
 import { Logger } from 'tslog';
@@ -424,6 +431,7 @@ export class RabbitMqReceiver extends AbstractMessageHandler {
     channel: amqplib.Channel,
   ): Promise<void> {
     if (message) {
+      let parsedMessage: Message<OcppRequest | OcppResponse | OcppError> | undefined;
       try {
         this._logger.debug(
           '_onMessage:Message from broker:',
@@ -433,19 +441,40 @@ export class RabbitMqReceiver extends AbstractMessageHandler {
         const messageData = JSON.parse(message.content.toString());
 
         // Create Message instance with generic payload (no type transformation needed)
-        const parsed = new Message(
+        parsedMessage = new Message<OcppRequest | OcppResponse | OcppError>(
           messageData.origin || messageData._origin,
           messageData.eventGroup || messageData._eventGroup,
           messageData.action || messageData._action,
           messageData.state || messageData._state,
           messageData.context || messageData._context,
-          messageData.payload || messageData._payload, // Keep payload as generic object
+          (messageData.payload || messageData._payload) as OcppRequest | OcppResponse | OcppError,
           messageData.protocol || messageData._protocol,
         );
-        await this.handle(parsed, message.properties);
+        await this.handle(parsedMessage, message.properties);
       } catch (error) {
         if (error instanceof RetryMessageError) {
-          this._logger.warn('Retrying message: ', error.message);
+          const isCallInProgressRetry =
+            error.code === RetryMessageErrorCode.CallInProgress ||
+            /call already in progress/i.test(error.message);
+          const stationId = parsedMessage?.context?.stationId ?? 'unknown';
+          const action = parsedMessage?.action ?? 'unknown';
+          // Workaround for repeated AFRRSignal redelivery loops:
+          // if a retried message was already redelivered once, drop it to avoid queue flooding.
+          if (
+            parsedMessage?.action === OCPP_CallAction.AFRRSignal &&
+            isCallInProgressRetry &&
+            message.fields.redelivered === true
+          ) {
+            this._logger.warn(
+              `Dropping redelivered retry message to prevent requeue loop (action=${action}, stationId=${stationId}).`,
+            );
+            channel.ack(message);
+            return;
+          }
+
+          this._logger.warn(
+            `Retrying message (action=${action}, stationId=${stationId}, redelivered=${message.fields.redelivered}): ${error.message}`,
+          );
           // Retryable error, usually ongoing call with station when trying to send new call
           channel.nack(message);
           return;

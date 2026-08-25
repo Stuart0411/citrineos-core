@@ -132,7 +132,11 @@ describe('V2XModule handlers', () => {
     expect(upsertPayload.allowedModesJson).toContain('correlation_id:corr-afrr-1');
   });
 
-  it('does not persist diagnostic state for normal AFRRSignal response', async () => {
+  it('persists AFRRSignal dispatch success as diagnostic policy state', async () => {
+    stationEnergyTransferPolicyRepository.readOnlyOneByQuery.mockResolvedValue({
+      dischargeLimitW: 4,
+    });
+
     await (module as any)._handleAfrrSignalResponse({
       context: {
         tenantId: 4,
@@ -142,10 +146,78 @@ describe('V2XModule handlers', () => {
       payload: {},
     } as any);
 
-    expect(stationEnergyTransferPolicyRepository.readOnlyOneByQuery).not.toHaveBeenCalled();
-    expect(
-      stationEnergyTransferPolicyRepository.upsertAllowedEnergyTransfer,
-    ).not.toHaveBeenCalled();
+    expect(stationEnergyTransferPolicyRepository.readOnlyOneByQuery).toHaveBeenCalledWith(4, {
+      where: {
+        stationId: 'cs-v2x-4',
+        transactionId: '__diag_afrrsignal__',
+      },
+      order: [['updatedAt', 'DESC']],
+      limit: 1,
+    });
+
+    expect(stationEnergyTransferPolicyRepository.upsertAllowedEnergyTransfer).toHaveBeenCalledWith(
+      4,
+      'cs-v2x-4',
+      expect.objectContaining({
+        transactionId: '__diag_afrrsignal__',
+        exportEnabled: false,
+        dischargeLimitW: 4,
+      }),
+    );
+
+    const upsertPayload =
+      stationEnergyTransferPolicyRepository.upsertAllowedEnergyTransfer.mock.calls[0][2];
+    expect(upsertPayload.allowedModesJson).toContain('__diag__');
+    expect(upsertPayload.allowedModesJson).toContain('afrr_signal_dispatch_ok');
+    expect(upsertPayload.allowedModesJson).toContain('correlation_id:corr-afrr-ok');
+  });
+
+  it('records AFRR send-accepted telemetry while preserving prior timeout/error context', async () => {
+    stationEnergyTransferPolicyRepository.readOnlyOneByQuery.mockResolvedValue({
+      dischargeLimitW: 5,
+      allowedModesJson: [
+        '__diag__',
+        'afrr_signal_call_error',
+        'error_code:InternalError',
+        'error_message:Request Timeout',
+      ],
+    });
+
+    await module.recordAfrrSignalSendAccepted(4, 'cs-v2x-4');
+
+    expect(stationEnergyTransferPolicyRepository.upsertAllowedEnergyTransfer).toHaveBeenCalledWith(
+      4,
+      'cs-v2x-4',
+      {
+        transactionId: '__diag_afrrsignal__',
+        allowedModesJson: [
+          '__diag__',
+          'afrr_signal_send_accepted',
+          'afrr_signal_call_error',
+          'error_code:InternalError',
+          'error_message:Request Timeout',
+        ],
+        exportEnabled: false,
+        dischargeLimitW: 5,
+      },
+    );
+  });
+
+  it('records AFRR send-accepted telemetry with default timeout when no prior row exists', async () => {
+    stationEnergyTransferPolicyRepository.readOnlyOneByQuery.mockResolvedValue(undefined);
+
+    await module.recordAfrrSignalSendAccepted(4, 'cs-v2x-4');
+
+    expect(stationEnergyTransferPolicyRepository.upsertAllowedEnergyTransfer).toHaveBeenCalledWith(
+      4,
+      'cs-v2x-4',
+      {
+        transactionId: '__diag_afrrsignal__',
+        allowedModesJson: ['__diag__', 'afrr_signal_send_accepted'],
+        exportEnabled: false,
+        dischargeLimitW: 0,
+      },
+    );
   });
 
   it('summarizes station capability including AFRR diagnostic status', () => {
@@ -184,11 +256,83 @@ describe('V2XModule handlers', () => {
         dischargeLimitW: null,
         afrrSignalDispatchUnavailable: true,
         afrrSignalTimeoutCount: 4,
+        afrrSignalSendAccepted: false,
+        lastAfrrSignalDispatchAt: '2026-08-19T01:05:00.000Z',
+        lastAfrrSignalSendAcceptedAt: null,
         lastAfrrSignalError: {
           at: '2026-08-19T01:05:00.000Z',
           errorCode: 'InternalError',
           errorDescription: 'Request Timeout',
           correlationId: 'corr-afrr-1',
+        },
+      },
+    ]);
+  });
+
+  it('summarizes success-only diagnostics without degraded status', () => {
+    const summary = module.summarizeStationCapabilities([
+      {
+        stationId: 'cs-v2x-4',
+        transactionId: '__diag_afrrsignal__',
+        allowedModesJson: [
+          '__diag__',
+          'afrr_signal_dispatch_ok',
+          'correlation_id:corr-afrr-2',
+        ],
+        exportEnabled: false,
+        dischargeLimitW: 2,
+        updatedAt: '2026-08-19T01:10:00.000Z',
+      },
+    ]);
+
+    expect(summary).toEqual([
+      {
+        stationId: 'cs-v2x-4',
+        lastUpdatedAt: '2026-08-19T01:10:00.000Z',
+        activeTransactionId: null,
+        allowedEnergyTransfer: [],
+        exportEnabled: false,
+        dischargeLimitW: null,
+        afrrSignalDispatchUnavailable: false,
+        afrrSignalTimeoutCount: 2,
+        afrrSignalSendAccepted: false,
+        lastAfrrSignalDispatchAt: '2026-08-19T01:10:00.000Z',
+        lastAfrrSignalSendAcceptedAt: null,
+        lastAfrrSignalError: null,
+      },
+    ]);
+  });
+
+  it('summarizes send-accepted diagnostics distinctly from response success/error', () => {
+    const summary = module.summarizeStationCapabilities([
+      {
+        stationId: 'cs-v2x-4',
+        transactionId: '__diag_afrrsignal__',
+        allowedModesJson: ['__diag__', 'afrr_signal_send_accepted', 'afrr_signal_call_error'],
+        exportEnabled: false,
+        dischargeLimitW: 3,
+        updatedAt: '2026-08-19T01:15:00.000Z',
+      },
+    ]);
+
+    expect(summary).toEqual([
+      {
+        stationId: 'cs-v2x-4',
+        lastUpdatedAt: '2026-08-19T01:15:00.000Z',
+        activeTransactionId: null,
+        allowedEnergyTransfer: [],
+        exportEnabled: false,
+        dischargeLimitW: null,
+        afrrSignalDispatchUnavailable: true,
+        afrrSignalTimeoutCount: 3,
+        afrrSignalSendAccepted: true,
+        lastAfrrSignalDispatchAt: '2026-08-19T01:15:00.000Z',
+        lastAfrrSignalSendAcceptedAt: '2026-08-19T01:15:00.000Z',
+        lastAfrrSignalError: {
+          at: '2026-08-19T01:15:00.000Z',
+          errorCode: null,
+          errorDescription: null,
+          correlationId: null,
         },
       },
     ]);
