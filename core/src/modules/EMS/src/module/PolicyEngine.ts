@@ -52,7 +52,6 @@ export class EmsPolicyEngine {
     const totalBudgetW = Math.max(0, budgetRaw);
     const dischargeBudgetRaw = Number((currentIntent.constraints as any)?.evDischargeBudgetW ?? 0);
     const totalDischargeBudgetW = Math.max(0, dischargeBudgetRaw);
-    const allowDischarge = (currentIntent.flags as any)?.allowDischarge === true;
 
     const eligibilityByStation = new Map<string, { eligible: boolean; reason: string | null }>();
 
@@ -78,8 +77,9 @@ export class EmsPolicyEngine {
 
     const perStationLimitW =
       eligibleStationIds.length > 0 ? totalBudgetW / eligibleStationIds.length : 0;
+    // opModExport: always compute per-station discharge limit from intent budget; no flag gate.
     const perStationDischargeLimitW =
-      eligibleStationIds.length > 0 && allowDischarge
+      eligibleStationIds.length > 0 && totalDischargeBudgetW > 0
         ? totalDischargeBudgetW / eligibleStationIds.length
         : 0;
 
@@ -114,10 +114,15 @@ export class EmsPolicyEngine {
           exportAllowed: false,
           dischargeLimitW: null,
         };
-        const exportAllowed = allowDischarge && energyTransferPolicy.exportAllowed;
-        const dischargeLimitW = exportAllowed
-          ? energyTransferPolicy.dischargeLimitW ?? perStationDischargeLimitW
-          : null;
+        const exportAllowed = energyTransferPolicy.exportAllowed;
+        // Apply opModExport: use min(stationCap, intentAllocation) when both are set.
+        const dischargeLimitW = (() => {
+          const cap = energyTransferPolicy.dischargeLimitW;
+          const alloc = perStationDischargeLimitW;
+          if (alloc > 0 && cap != null) return Math.min(cap, alloc);
+          if (alloc > 0) return alloc;
+          return cap ?? null;
+        })();
 
         return {
           stationId,
@@ -153,19 +158,16 @@ export class EmsPolicyEngine {
       return undefined;
     }
 
-    return this.stationEnergyTransferPolicyRepository.readOnlyOneByQuery(tenantId, {
+    const rows = await this.stationEnergyTransferPolicyRepository.readAllByQuery(tenantId, {
       where: {
         stationId,
       },
       order: [['updatedAt', 'DESC']],
-      limit: 1,
-    }) as Promise<
-      | {
-          exportEnabled?: boolean;
-          dischargeLimitW?: number | null;
-        }
-      | undefined
-    >;
+      limit: 20,
+    });
+    // Skip the V2X diagnostic pseudo-row written by the AFRR dispatch path
+    const policy = rows.find((r) => (r as any).transactionId !== '__diag_afrrsignal__');
+    return policy ?? undefined;
   }
 
   private _isSupportedProtocol(protocol: OCPPVersion | null): boolean {
@@ -173,10 +175,18 @@ export class EmsPolicyEngine {
   }
 
   private _supportsChargingProfiles(station: ChargingStationDto): boolean {
+    if (station.protocol === OCPPVersionEnum.OCPP2_1) {
+      return true;
+    }
+
     return !station.capabilities || station.capabilities.includes('ChargingProfileCapable');
   }
 
   private _supportsRequestedEvse(station: ChargingStationDto, evseId: number): boolean {
+    if (station.protocol === OCPPVersionEnum.OCPP2_1) {
+      return true;
+    }
+
     if (!station.evses || station.evses.length === 0) {
       return true;
     }
