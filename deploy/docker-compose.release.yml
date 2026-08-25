@@ -1,0 +1,34 @@
+# SPDX-FileCopyrightText: 2026 Contributors to the CitrineOS Project
+#
+# SPDX-License-Identifier: Apache-2.0
+
+# Immutable-image release stack for CitrineOS server.
+# Dependencies (ocpp-db, amqp-broker, minio) must already be running.
+# Set CITRINE_IMAGE before calling: $env:CITRINE_IMAGE = "ghcr.io/owner/citrineos-server:TAG"
+
+services:
+  citrine:
+    image: ${CITRINE_IMAGE:?Set CITRINE_IMAGE to a fully-qualified image tag}
+    pull_policy: always
+    ports:
+      - ${CITRINE_HOST_PORT:-8080}:8080
+      - 8081:8081
+      - 8082:8082
+      - 8083:8083
+      - 8443:8443
+      - 8444:8444
+    env_file:
+      - ./citrine.runtime.env
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >
+          node -e "const net = require('net');
+          const c = net.createConnection(8080, '127.0.0.1', () => { c.end(); process.exit(0); });
+          c.on('error', () => process.exit(1));
+          c.setTimeout(5000, () => { c.destroy(); process.exit(1); });"
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
