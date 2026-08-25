@@ -53,6 +53,16 @@ import { Logger } from 'tslog';
 import { EmsMqttBridge } from './MqttBridge.js';
 import { EmsPolicyEngine } from './PolicyEngine.js';
 
+export type EmsAutoApplyConfig = {
+  siteId: string;
+  stationIds: string[];
+  evseId: number;
+  strategy: EmsChargingPlanRequest['strategy'];
+  chargingProfilePurpose: EmsChargingPlanRequest['chargingProfilePurpose'];
+  operationMode: EmsChargingPlanRequest['operationMode'];
+  enabled: boolean;
+};
+
 export class EmsModule extends AbstractModule {
   _requests: CallAction[] = [];
   _responses: CallAction[] = [];
@@ -65,6 +75,10 @@ export class EmsModule extends AbstractModule {
   protected _mqttBridge: EmsMqttBridge;
   protected _policyEngine: EmsPolicyEngine;
   protected _idGenerator: IdGenerator;
+  private _autoApplyConfigs: Map<string, EmsAutoApplyConfig> = new Map();
+  // Prevent concurrent applications and debounce rapid MQTT intent bursts per site key.
+  private _autoApplyInFlight: Set<string> = new Set();
+  private _autoApplyDebounceTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
 
   private static _createNoopDeviceModelRepository(): IDeviceModelRepository {
     return {
@@ -92,7 +106,11 @@ export class EmsModule extends AbstractModule {
       new Set([...(config.modules.ems?.requests ?? []), OCPP_CallAction.ReportChargingProfiles]),
     );
     this._responses = Array.from(
-      new Set([...(config.modules.ems?.responses ?? []), OCPP_CallAction.SetChargingProfile]),
+      new Set([
+        ...(config.modules.ems?.responses ?? []),
+        OCPP_CallAction.SetChargingProfile,
+        OCPP_CallAction.ClearChargingProfile,
+      ]),
     );
     this._emsSiteIntentRepository =
       emsSiteIntentRepository || new SequelizeEmsSiteIntentRepository(config, logger);
@@ -114,6 +132,7 @@ export class EmsModule extends AbstractModule {
       this._logger,
       undefined,
       this._emsDecisionRepository,
+      (tenantId: number, siteId: string) => void this.maybeAutoApply(tenantId, siteId),
     );
     this._policyEngine = new EmsPolicyEngine(
       this._emsSiteIntentRepository,
@@ -132,6 +151,75 @@ export class EmsModule extends AbstractModule {
 
   get emsDecisionRepository(): IEmsDecisionRepository {
     return this._emsDecisionRepository;
+  }
+
+  setAutoApplyConfig(tenantId: number, config: EmsAutoApplyConfig): void {
+    this._autoApplyConfigs.set(`${tenantId}:${config.siteId}`, config);
+  }
+
+  getAutoApplyConfig(tenantId: number, siteId: string): EmsAutoApplyConfig | undefined {
+    return this._autoApplyConfigs.get(`${tenantId}:${siteId}`);
+  }
+
+  getAllAutoApplyConfigs(tenantId: number): EmsAutoApplyConfig[] {
+    return Array.from(this._autoApplyConfigs.entries())
+      .filter(([key]) => key.startsWith(`${tenantId}:`))
+      .map(([, value]) => value);
+  }
+
+  removeAutoApplyConfig(tenantId: number, siteId: string): void {
+    this._autoApplyConfigs.delete(`${tenantId}:${siteId}`);
+  }
+
+  async maybeAutoApply(tenantId: number, siteId: string): Promise<void> {
+    const config = this._autoApplyConfigs.get(`${tenantId}:${siteId}`);
+    if (!config || !config.enabled || config.stationIds.length === 0) {
+      return;
+    }
+    const key = `${tenantId}:${siteId}`;
+    // Debounce: cancel any pending call for this site and schedule a fresh one.
+    const existing = this._autoApplyDebounceTimers.get(key);
+    if (existing) {
+      clearTimeout(existing);
+    }
+    const debounceMs = (this.config as any).modules?.ems?.autoApplyDebounceMs ?? 2000;
+    const timer = setTimeout(() => {
+      this._autoApplyDebounceTimers.delete(key);
+      void this._runAutoApply(tenantId, siteId, config);
+    }, debounceMs);
+    this._autoApplyDebounceTimers.set(key, timer);
+  }
+
+  private async _runAutoApply(
+    tenantId: number,
+    siteId: string,
+    config: EmsAutoApplyConfig,
+  ): Promise<void> {
+    const key = `${tenantId}:${siteId}`;
+    if (this._autoApplyInFlight.has(key)) {
+      this._logger.debug(`EMS auto-apply already in flight for ${key}, skipping.`);
+      return;
+    }
+    this._autoApplyInFlight.add(key);
+    try {
+      await this.applyChargingPlan(tenantId, {
+        siteId: config.siteId,
+        stationIds: config.stationIds,
+        evseId: config.evseId,
+        strategy: config.strategy,
+        chargingProfilePurpose: config.chargingProfilePurpose,
+        operationMode: config.operationMode,
+      });
+      this._logger.debug(
+        `EMS auto-apply triggered for site ${siteId} → ${config.stationIds.join(',')}`,
+      );
+    } catch (err) {
+      this._logger.warn(
+        `EMS auto-apply failed for site ${siteId}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    } finally {
+      this._autoApplyInFlight.delete(key);
+    }
   }
 
   async deriveChargingPlan(tenantId: number, request: EmsChargingPlanRequest) {
@@ -208,12 +296,36 @@ export class EmsModule extends AbstractModule {
         tenantId,
         recommendation.stationId,
       );
-      const stackLevel = await this._chargingProfileRepository.getNextStackLevel(
-        tenantId,
-        recommendation.stationId,
-        null,
-        recommendation.chargingProfilePurpose,
-      );
+      // EMS always uses stack level 0 so SetChargingProfile replaces the previous EMS profile in-place.
+      const stackLevel = 0;
+
+      // Clear any previously stale EMS profiles on the EVSE for this purpose before applying the new one.
+      // OCPP 2.1: station-level profiles (MaxProfile, ExternalConstraints) must use evseId 0.
+      const stationLevelPurposes = [
+        OCPP2_1.ChargingProfilePurposeEnumType.ChargingStationMaxProfile as string,
+        OCPP2_1.ChargingProfilePurposeEnumType.ChargingStationExternalConstraints as string,
+      ];
+      const ocppEvseId = stationLevelPurposes.includes(recommendation.chargingProfilePurpose)
+        ? 0
+        : recommendation.evseId;
+
+      try {
+        await this.sendCall(
+          recommendation.stationId,
+          tenantId,
+          recommendation.protocol as OCPPVersion,
+          OCPP_CallAction.ClearChargingProfile,
+          {
+            // ClearChargingProfileRequest has no top-level evseId; criteria covers all EVSEs for this purpose.
+            chargingProfileCriteria: {
+              chargingProfilePurpose: recommendation.chargingProfilePurpose,
+              stackLevel: 0,
+            },
+          } as OCPP2_request_types.ClearChargingProfileRequest,
+        );
+      } catch {
+        // Ignore ClearChargingProfile failures — proceed with SetChargingProfile.
+      }
 
       const validFrom = new Date().toISOString();
       const startSchedule = new Date().toISOString();
@@ -228,14 +340,19 @@ export class EmsModule extends AbstractModule {
           : OCPP2_0_1.ChargingProfilePurposeEnumType.ChargingStationMaxProfile;
 
       const protocol = recommendation.protocol as OCPPVersion;
-      const chargingProfile: OCPP2_1.ChargingProfileType | OCPP2_0_1.ChargingProfileType =
+      const ocpp21ChargingProfileKind = stationLevelPurposes.includes(
+        recommendation.chargingProfilePurpose,
+      )
+        ? OCPP2_1.ChargingProfileKindEnumType.Absolute
+        : OCPP2_1.ChargingProfileKindEnumType.Dynamic;
+      let chargingProfile: OCPP2_1.ChargingProfileType | OCPP2_0_1.ChargingProfileType =
         protocol === OCPPVersion.OCPP2_1
           ? {
               id: profileId,
               stackLevel,
               chargingProfilePurpose:
                 recommendation.chargingProfilePurpose as OCPP2_1.ChargingProfilePurposeEnumType,
-              chargingProfileKind: OCPP2_1.ChargingProfileKindEnumType.Dynamic,
+              chargingProfileKind: ocpp21ChargingProfileKind,
               validFrom,
               chargingSchedule: [
                 {
@@ -250,7 +367,8 @@ export class EmsModule extends AbstractModule {
                       ...(recommendation.exportAllowed &&
                       typeof recommendation.dischargeLimitW === 'number'
                         ? {
-                            dischargeLimit: recommendation.dischargeLimitW,
+                            // OCPP 2.1 requires dischargeLimit <= 0 (negative means discharge)
+                            dischargeLimit: -Math.abs(recommendation.dischargeLimitW),
                           }
                         : {}),
                     },
@@ -279,6 +397,51 @@ export class EmsModule extends AbstractModule {
               ],
             };
 
+      let confirmation: IMessageConfirmation = await this.sendCall(
+        recommendation.stationId,
+        tenantId,
+        protocol,
+        OCPP_CallAction.SetChargingProfile,
+        {
+          evseId: ocppEvseId,
+          chargingProfile,
+        } as OCPP2_request_types.SetChargingProfileRequest,
+      );
+
+      const responseStatus = (payload: unknown): string | undefined =>
+        (payload as { status?: string } | undefined)?.status;
+      const responseReasonCode = (payload: unknown): string | undefined =>
+        (payload as { statusInfo?: { reasonCode?: string } } | undefined)?.statusInfo?.reasonCode;
+      const isAcceptedResponse = (payload: unknown): boolean =>
+        responseStatus(payload) === 'Accepted';
+      const isInvalidProfileResponse = (payload: unknown): boolean =>
+        responseStatus(payload) === 'Rejected' && responseReasonCode(payload) === 'InvalidProfile';
+
+      if (
+        protocol === OCPPVersion.OCPP2_1 &&
+        isInvalidProfileResponse(confirmation.payload) &&
+        chargingProfile.chargingProfileKind === OCPP2_1.ChargingProfileKindEnumType.Dynamic
+      ) {
+        // Some stations reject Dynamic for ExternalConstraints; retry with Absolute.
+        chargingProfile = {
+          ...(chargingProfile as OCPP2_1.ChargingProfileType),
+          chargingProfileKind: OCPP2_1.ChargingProfileKindEnumType.Absolute,
+        };
+
+        confirmation = await this.sendCall(
+          recommendation.stationId,
+          tenantId,
+          protocol,
+          OCPP_CallAction.SetChargingProfile,
+          {
+            evseId: ocppEvseId,
+            chargingProfile,
+          } as OCPP2_request_types.SetChargingProfileRequest,
+        );
+      }
+
+      const applied = confirmation.success && isAcceptedResponse(confirmation.payload);
+
       await this._chargingProfileRepository.createOrUpdateChargingProfile(
         tenantId,
         OCPP2_0_1_Mapper.ChargingProfileMapper.fromChargingProfileType(chargingProfile),
@@ -287,25 +450,14 @@ export class EmsModule extends AbstractModule {
         ChargingLimitSourceEnum.EMS as ChargingLimitSourceEnumType,
       );
 
-      const confirmation: IMessageConfirmation = await this.sendCall(
-        recommendation.stationId,
-        tenantId,
-        protocol,
-        OCPP_CallAction.SetChargingProfile,
-        {
-          evseId: recommendation.evseId,
-          chargingProfile,
-        } as OCPP2_request_types.SetChargingProfileRequest,
-      );
-
       results.push({
         stationId: recommendation.stationId,
-        applied: confirmation.success,
+        applied,
         profileId,
         scheduleId,
-        success: confirmation.success,
+        success: applied,
         payload: confirmation.payload,
-        reason: confirmation.success
+        reason: applied
           ? protocol === OCPPVersion.OCPP2_0_1
             ? 'Applied OCPP 2.0.1 Absolute-profile fallback'
             : null
