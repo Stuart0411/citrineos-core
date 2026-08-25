@@ -1,0 +1,82 @@
+# SPDX-FileCopyrightText: 2026 Contributors to the CitrineOS Project
+#
+# SPDX-License-Identifier: Apache-2.0
+
+name: Release Server Image
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Image tag to publish (example: 2026.08.24.1)"
+        required: true
+        type: string
+      publish_latest:
+        description: "Also publish :latest tag"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-and-push:
+    name: Build And Push Image
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: feature/deploy-immutable-server
+
+      - name: Set release tag
+        id: tag
+        shell: bash
+        run: |
+          TAG="${{ github.event.inputs.release_tag }}"
+          LATEST="${{ github.event.inputs.publish_latest }}"
+          if [[ -z "${TAG}" ]]; then
+            echo "Tag cannot be empty" >&2
+            exit 1
+          fi
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "publish_latest=${LATEST}" >> "$GITHUB_OUTPUT"
+
+      - name: Set image name
+        id: image
+        shell: bash
+        run: |
+          IMAGE_NAME="ghcr.io/${GITHUB_REPOSITORY_OWNER}/citrineos-server"
+          echo "image_name=$(echo ${IMAGE_NAME} | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push release tag
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Server/deploy.Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.image.outputs.image_name }}:${{ steps.tag.outputs.tag }}
+
+      - name: Also push :latest
+        if: steps.tag.outputs.publish_latest == 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Server/deploy.Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.image.outputs.image_name }}:latest
