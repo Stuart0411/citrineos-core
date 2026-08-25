@@ -54,6 +54,7 @@ const EmsAutoApplyConfigBodySchema = {
       strategy: z.enum(['equal_share_online', 'equal_share_all']).default('equal_share_online'),
       chargingProfilePurpose: z.string().min(1).default('ChargingStationExternalConstraints'),
       operationMode: z.string().min(1).default('ExternalLimits'),
+      applicationPath: z.enum(['absolute', 'dynamic']).default('absolute'),
       enabled: z.boolean().default(true),
     }),
     { target: 'draft-7', reused: 'ref' },
@@ -99,10 +100,15 @@ export class EmsDataApi extends AbstractModuleApi<EmsModule> implements IEmsModu
 
     try {
       validateEmsIntentPolicy(this._module.config, normalizedIntent);
-      return await this._module.emsSiteIntentRepository.createSiteIntent(tenantId, normalizedIntent);
+      return await this._module.emsSiteIntentRepository.createSiteIntent(
+        tenantId,
+        normalizedIntent,
+      );
     } catch (error) {
       if (error instanceof UniqueConstraintError) {
-        throw new BadRequestError(`Duplicate EMS site intent messageId ${normalizedIntent.messageId}`);
+        throw new BadRequestError(
+          `Duplicate EMS site intent messageId ${normalizedIntent.messageId}`,
+        );
       }
       if (error instanceof BadRequestError) {
         throw error;
@@ -295,7 +301,9 @@ export class EmsDataApi extends AbstractModuleApi<EmsModule> implements IEmsModu
       accepted,
       rejected,
       byReasonCode,
-      latestCreatedAt: decisions[0]?.createdAt ? new Date(decisions[0].createdAt).toISOString() : null,
+      latestCreatedAt: decisions[0]?.createdAt
+        ? new Date(decisions[0].createdAt).toISOString()
+        : null,
     };
   }
 
@@ -371,7 +379,10 @@ export class EmsDataApi extends AbstractModuleApi<EmsModule> implements IEmsModu
       Querystring: TenantQueryString;
     }>,
   ): Promise<EmsChargingPlanReconciliationResponse> {
-    const reconciled = await this._module.reconcileChargingPlan(request.query.tenantId, request.body);
+    const reconciled = await this._module.reconcileChargingPlan(
+      request.query.tenantId,
+      request.body,
+    );
     if (!reconciled) {
       throw new BadRequestError(`No active EMS site intent found for site ${request.body.siteId}`);
     }
@@ -390,7 +401,12 @@ export class EmsDataApi extends AbstractModuleApi<EmsModule> implements IEmsModu
     return this._module.getAllAutoApplyConfigs(request.query.tenantId);
   }
 
-  @AsDataEndpoint(Namespace.EmsAutoApply, HttpMethod.Post, TenantQuerySchema, EmsAutoApplyConfigBodySchema)
+  @AsDataEndpoint(
+    Namespace.EmsAutoApply,
+    HttpMethod.Post,
+    TenantQuerySchema,
+    EmsAutoApplyConfigBodySchema,
+  )
   setAutoApplyConfig(
     request: FastifyRequest<{ Querystring: TenantQueryString; Body: EmsAutoApplyConfig }>,
   ): EmsAutoApplyConfig {
@@ -399,8 +415,10 @@ export class EmsDataApi extends AbstractModuleApi<EmsModule> implements IEmsModu
       stationIds: request.body.stationIds,
       evseId: request.body.evseId ?? 1,
       strategy: request.body.strategy ?? 'equal_share_online',
-      chargingProfilePurpose: request.body.chargingProfilePurpose ?? 'ChargingStationExternalConstraints',
+      chargingProfilePurpose:
+        request.body.chargingProfilePurpose ?? 'ChargingStationExternalConstraints',
       operationMode: request.body.operationMode ?? 'ExternalLimits',
+      applicationPath: request.body.applicationPath ?? 'absolute',
       enabled: request.body.enabled !== false,
     };
     this._module.setAutoApplyConfig(request.query.tenantId, config);

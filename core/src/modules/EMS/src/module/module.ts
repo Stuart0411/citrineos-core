@@ -60,6 +60,7 @@ export type EmsAutoApplyConfig = {
   strategy: EmsChargingPlanRequest['strategy'];
   chargingProfilePurpose: EmsChargingPlanRequest['chargingProfilePurpose'];
   operationMode: EmsChargingPlanRequest['operationMode'];
+  applicationPath: EmsChargingPlanRequest['applicationPath'];
   enabled: boolean;
 };
 
@@ -79,10 +80,8 @@ export class EmsModule extends AbstractModule {
   // Prevent concurrent applications and debounce rapid MQTT intent bursts per site key.
   private _autoApplyInFlight: Set<string> = new Set();
   private _autoApplyDebounceTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
-  // Last-applied fingerprint per "tenantId:stationId:evseId" to skip unchanged limits.
+  // Fingerprint per "tenantId:stationId:evseId" to skip applying unchanged limits.
   private _lastAppliedFingerprints: Map<string, string> = new Map();
-  // Active OCPP 2.1 Dynamic profile ID per "tenantId:stationId:evseId:purpose" for UpdateDynamicSchedule.
-  private _activeEmsProfileIds: Map<string, number> = new Map();
 
   private static _createNoopDeviceModelRepository(): IDeviceModelRepository {
     return {
@@ -213,6 +212,7 @@ export class EmsModule extends AbstractModule {
         strategy: config.strategy,
         chargingProfilePurpose: config.chargingProfilePurpose,
         operationMode: config.operationMode,
+        applicationPath: config.applicationPath,
       });
       this._logger.debug(
         `EMS auto-apply triggered for site ${siteId} → ${config.stationIds.join(',')}`,
@@ -240,6 +240,7 @@ export class EmsModule extends AbstractModule {
     }
 
     const results = [] as EmsApplyChargingPlanResponse['results'];
+    const applicationPath = request.applicationPath ?? 'absolute';
 
     for (const recommendation of plan.recommendations) {
       if (!recommendation.eligible) {
@@ -322,6 +323,47 @@ export class EmsModule extends AbstractModule {
         continue;
       }
 
+      if (applicationPath === 'dynamic') {
+        const dynamicApplyResult = await this._applyDynamicSchedule(
+          tenantId,
+          recommendation.stationId,
+          recommendation.evseId,
+          recommendation.protocol,
+          recommendation.limitW,
+          recommendation.dischargeLimitW ?? null,
+        );
+
+        if (dynamicApplyResult.applied) {
+          this._lastAppliedFingerprints.set(fingerprintKey, newFingerprint);
+        }
+
+        results.push({
+          stationId: recommendation.stationId,
+          applied: dynamicApplyResult.applied,
+          profileId: dynamicApplyResult.profileId ?? null,
+          scheduleId: null,
+          success: dynamicApplyResult.applied,
+          payload: dynamicApplyResult.payload,
+          reason: dynamicApplyResult.reason,
+        });
+
+        await this._persistEmsDecision(tenantId, {
+          siteId: plan.siteId,
+          stationId: recommendation.stationId,
+          evseId: recommendation.evseId,
+          intentMessageId: plan.sourceIntentMessageId,
+          decisionType: dynamicApplyResult.applied ? 'apply_result' : 'apply_skipped',
+          decisionJson: {
+            applicationPath,
+            profileId: dynamicApplyResult.profileId ?? null,
+            confirmation: dynamicApplyResult.payload ?? null,
+            recommendation,
+            reason: dynamicApplyResult.reason,
+          },
+        });
+        continue;
+      }
+
       const profileId = await this._chargingProfileRepository.getNextChargingProfileId(
         tenantId,
         recommendation.stationId,
@@ -333,8 +375,7 @@ export class EmsModule extends AbstractModule {
       // EMS always uses stack level 0 so SetChargingProfile replaces the previous EMS profile in-place.
       const stackLevel = 0;
 
-      // Clear any previously stale EMS profiles on the EVSE for this purpose before applying the new one.
-      // OCPP 2.1: station-level profiles (MaxProfile, ExternalConstraints) must use evseId 0.
+      // OCPP 2.1: station-level profiles must use evseId 0.
       const stationLevelPurposes = [
         OCPP2_1.ChargingProfilePurposeEnumType.ChargingStationMaxProfile as string,
         OCPP2_1.ChargingProfilePurposeEnumType.ChargingStationExternalConstraints as string,
@@ -343,65 +384,6 @@ export class EmsModule extends AbstractModule {
         ? 0
         : recommendation.evseId;
 
-      // OCPP 2.1 Dynamic profiles: use UpdateDynamicSchedule after the first install.
-      const profileKey = `${tenantId}:${recommendation.stationId}:${recommendation.evseId}:${recommendation.chargingProfilePurpose}`;
-      const wouldBeDynamic =
-        recommendation.protocol === OCPPVersion.OCPP2_1 &&
-        !stationLevelPurposes.includes(recommendation.chargingProfilePurpose);
-      const existingProfileId = this._activeEmsProfileIds.get(profileKey);
-
-      if (wouldBeDynamic && existingProfileId !== undefined) {
-        const scheduleUpdate: OCPP2_1.ChargingScheduleUpdateType = {
-          limit: recommendation.limitW,
-          ...(typeof recommendation.dischargeLimitW === 'number'
-            ? { dischargeLimit: -Math.abs(recommendation.dischargeLimitW) }
-            : {}),
-        };
-        const updateConf = await this.sendCall(
-          recommendation.stationId,
-          tenantId,
-          recommendation.protocol as OCPPVersion,
-          OCPP_CallAction.UpdateDynamicSchedule,
-          {
-            chargingProfileId: existingProfileId,
-            scheduleUpdate,
-          } as OCPP2_1.UpdateDynamicScheduleRequest,
-        );
-        const updateApplied =
-          updateConf.success &&
-          (updateConf.payload as { status?: string } | undefined)?.status === 'Accepted';
-        if (updateApplied) {
-          this._lastAppliedFingerprints.set(fingerprintKey, newFingerprint);
-          results.push({
-            stationId: recommendation.stationId,
-            applied: true,
-            profileId: existingProfileId,
-            success: true,
-            payload: updateConf.payload,
-            reason: null,
-          });
-          await this._persistEmsDecision(tenantId, {
-            siteId: plan.siteId,
-            stationId: recommendation.stationId,
-            evseId: recommendation.evseId,
-            intentMessageId: plan.sourceIntentMessageId,
-            decisionType: 'apply_result',
-            decisionJson: {
-              profileId: existingProfileId,
-              updateDynamic: true,
-              updateConf,
-              recommendation,
-            },
-          });
-          continue;
-        }
-        // Station rejected UpdateDynamicSchedule — clear the cached ID and fall through to Clear+Set.
-        this._activeEmsProfileIds.delete(profileKey);
-        this._logger.warn(
-          `UpdateDynamicSchedule rejected for ${recommendation.stationId} (profileId=${existingProfileId}); falling back to SetChargingProfile`,
-        );
-      }
-
       try {
         await this.sendCall(
           recommendation.stationId,
@@ -409,7 +391,6 @@ export class EmsModule extends AbstractModule {
           recommendation.protocol as OCPPVersion,
           OCPP_CallAction.ClearChargingProfile,
           {
-            // ClearChargingProfileRequest has no top-level evseId; criteria covers all EVSEs for this purpose.
             chargingProfileCriteria: {
               chargingProfilePurpose: recommendation.chargingProfilePurpose,
               stackLevel: 0,
@@ -433,19 +414,14 @@ export class EmsModule extends AbstractModule {
           : OCPP2_0_1.ChargingProfilePurposeEnumType.ChargingStationMaxProfile;
 
       const protocol = recommendation.protocol as OCPPVersion;
-      const ocpp21ChargingProfileKind = stationLevelPurposes.includes(
-        recommendation.chargingProfilePurpose,
-      )
-        ? OCPP2_1.ChargingProfileKindEnumType.Absolute
-        : OCPP2_1.ChargingProfileKindEnumType.Dynamic;
-      let chargingProfile: OCPP2_1.ChargingProfileType | OCPP2_0_1.ChargingProfileType =
+      const chargingProfile: OCPP2_1.ChargingProfileType | OCPP2_0_1.ChargingProfileType =
         protocol === OCPPVersion.OCPP2_1
           ? {
               id: profileId,
               stackLevel,
               chargingProfilePurpose:
                 recommendation.chargingProfilePurpose as OCPP2_1.ChargingProfilePurposeEnumType,
-              chargingProfileKind: ocpp21ChargingProfileKind,
+              chargingProfileKind: OCPP2_1.ChargingProfileKindEnumType.Absolute,
               validFrom,
               chargingSchedule: [
                 {
@@ -455,7 +431,13 @@ export class EmsModule extends AbstractModule {
                   chargingSchedulePeriod: [
                     {
                       startPeriod: 0,
-                      limit: recommendation.limitW,
+                      // Use a small positive minimum when limit is 0 to avoid InvalidProfile rejection (pure V2G mode).
+                      limit:
+                        recommendation.limitW > 0
+                          ? recommendation.limitW
+                          : typeof recommendation.dischargeLimitW === 'number'
+                            ? 100
+                            : 0,
                       operationMode: recommendation.operationMode as OCPP2_1.OperationModeEnumType,
                       ...(typeof recommendation.dischargeLimitW === 'number'
                         ? { dischargeLimit: -Math.abs(recommendation.dischargeLimitW) }
@@ -486,7 +468,7 @@ export class EmsModule extends AbstractModule {
               ],
             };
 
-      let confirmation: IMessageConfirmation = await this.sendCall(
+      const confirmation: IMessageConfirmation = await this.sendCall(
         recommendation.stationId,
         tenantId,
         protocol,
@@ -497,51 +479,15 @@ export class EmsModule extends AbstractModule {
         } as OCPP2_request_types.SetChargingProfileRequest,
       );
 
-      const responseStatus = (payload: unknown): string | undefined =>
-        (payload as { status?: string } | undefined)?.status;
-      const responseReasonCode = (payload: unknown): string | undefined =>
-        (payload as { statusInfo?: { reasonCode?: string } } | undefined)?.statusInfo?.reasonCode;
-      const isAcceptedResponse = (payload: unknown): boolean =>
-        responseStatus(payload) === 'Accepted';
-      const isInvalidProfileResponse = (payload: unknown): boolean =>
-        responseStatus(payload) === 'Rejected' && responseReasonCode(payload) === 'InvalidProfile';
+      // sendCall is dispatched async; treat success as applied and update fingerprint so unchanged limits are skipped.
+      const applied =
+        confirmation.success &&
+        (confirmation.payload === undefined ||
+          confirmation.payload === null ||
+          (confirmation.payload as { status?: string } | undefined)?.status === 'Accepted');
 
-      if (
-        protocol === OCPPVersion.OCPP2_1 &&
-        isInvalidProfileResponse(confirmation.payload) &&
-        chargingProfile.chargingProfileKind === OCPP2_1.ChargingProfileKindEnumType.Dynamic
-      ) {
-        // Some stations reject Dynamic for ExternalConstraints; retry with Absolute.
-        chargingProfile = {
-          ...(chargingProfile as OCPP2_1.ChargingProfileType),
-          chargingProfileKind: OCPP2_1.ChargingProfileKindEnumType.Absolute,
-        };
-
-        confirmation = await this.sendCall(
-          recommendation.stationId,
-          tenantId,
-          protocol,
-          OCPP_CallAction.SetChargingProfile,
-          {
-            evseId: ocppEvseId,
-            chargingProfile,
-          } as OCPP2_request_types.SetChargingProfileRequest,
-        );
-      }
-
-      const applied = confirmation.success && isAcceptedResponse(confirmation.payload);
-
-      // Record the fingerprint only on a successful apply so unchanged limits are detected next time.
       if (applied) {
         this._lastAppliedFingerprints.set(fingerprintKey, newFingerprint);
-        // Track the profile ID so subsequent updates can use UpdateDynamicSchedule instead of Clear+Set.
-        if (
-          protocol === OCPPVersion.OCPP2_1 &&
-          (chargingProfile as OCPP2_1.ChargingProfileType).chargingProfileKind ===
-            OCPP2_1.ChargingProfileKindEnumType.Dynamic
-        ) {
-          this._activeEmsProfileIds.set(profileKey, profileId);
-        }
       }
 
       await this._chargingProfileRepository.createOrUpdateChargingProfile(
@@ -688,6 +634,99 @@ export class EmsModule extends AbstractModule {
       comparedCount: results.length,
       driftedCount: results.filter((result) => result.drifted).length,
       results,
+    };
+  }
+
+  private async _findDynamicChargingProfileId(
+    tenantId: number,
+    stationId: string,
+    evseId: number,
+  ): Promise<number | null> {
+    const dynamicKind = OCPP2_1.ChargingProfileKindEnumType.Dynamic;
+    const byEvse = await this._chargingProfileRepository.readAllByQuery(tenantId, {
+      where: {
+        stationId,
+        evseId,
+        isActive: true,
+        chargingProfileKind: dynamicKind,
+      },
+      order: [['updatedAt', 'DESC']],
+      limit: 1,
+    });
+
+    const candidate =
+      byEvse[0] ??
+      (
+        await this._chargingProfileRepository.readAllByQuery(tenantId, {
+          where: {
+            stationId,
+            isActive: true,
+            chargingProfileKind: dynamicKind,
+          },
+          order: [['updatedAt', 'DESC']],
+          limit: 1,
+        })
+      )[0];
+
+    const profileId = Number((candidate as { id?: unknown } | undefined)?.id);
+    return Number.isInteger(profileId) && profileId > 0 ? profileId : null;
+  }
+
+  private async _applyDynamicSchedule(
+    tenantId: number,
+    stationId: string,
+    evseId: number,
+    protocol: OCPPVersion | null | undefined,
+    limitW: number,
+    dischargeLimitW: number | null,
+  ): Promise<{
+    applied: boolean;
+    reason: string | null;
+    profileId: number | null;
+    payload?: unknown;
+  }> {
+    if (protocol !== OCPPVersion.OCPP2_1) {
+      return {
+        applied: false,
+        reason: `Dynamic path requires OCPP 2.1, got ${protocol ?? 'unknown'}`,
+        profileId: null,
+      };
+    }
+
+    const profileId = await this._findDynamicChargingProfileId(tenantId, stationId, evseId);
+    if (!profileId) {
+      return {
+        applied: false,
+        reason: 'No active Dynamic charging profile found to update.',
+        profileId: null,
+      };
+    }
+
+    const scheduleUpdate: OCPP2_1.ChargingScheduleUpdateType = {
+      limit: limitW > 0 ? limitW : typeof dischargeLimitW === 'number' ? 100 : 0,
+      ...(typeof dischargeLimitW === 'number'
+        ? { dischargeLimit: -Math.abs(dischargeLimitW) }
+        : {}),
+    };
+
+    const confirmation: IMessageConfirmation = await this.sendCall(
+      stationId,
+      tenantId,
+      OCPPVersion.OCPP2_1,
+      OCPP_CallAction.UpdateDynamicSchedule,
+      {
+        chargingProfileId: profileId,
+        scheduleUpdate,
+      } as OCPP2_1.UpdateDynamicScheduleRequest,
+    );
+
+    const payload = confirmation.payload as { status?: string } | undefined;
+    const accepted = confirmation.success && (!payload?.status || payload.status === 'Accepted');
+    return {
+      applied: accepted,
+      reason: accepted ? 'Applied UpdateDynamicSchedule' : String(confirmation.payload),
+      profileId,
+      payload: confirmation.payload,
     };
   }
 
