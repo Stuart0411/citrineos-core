@@ -50,7 +50,9 @@ export class EmsPolicyEngine {
       Number((currentIntent.constraints as any)?.evChargeBudgetW ?? NaN) ||
       Number((currentIntent.constraints as any)?.maxImportW ?? 0);
     const totalBudgetW = Math.max(0, budgetRaw);
-    const dischargeBudgetRaw = Number((currentIntent.constraints as any)?.evDischargeBudgetW ?? 0);
+    const dischargeBudgetRaw =
+      Number((currentIntent.constraints as any)?.evDischargeBudgetW ?? NaN) ||
+      Number((currentIntent.constraints as any)?.maxExportW ?? 0);
     const totalDischargeBudgetW = Math.max(0, dischargeBudgetRaw);
 
     const eligibilityByStation = new Map<string, { eligible: boolean; reason: string | null }>();

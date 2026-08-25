@@ -320,15 +320,21 @@ export class EmsMqttBridge {
         ),
       },
       flags: {
+        // Infer allowDischarge when opModExpLimW or an explicit discharge budget is present.
         allowDischarge:
-          (sourcePayload.flags as Record<string, unknown> | undefined)?.allowDischarge === true,
+          (sourcePayload.flags as Record<string, unknown> | undefined)?.allowDischarge === true ||
+          this.extractWrappedNumber(sourcePayload.opModExpLimW) != null ||
+          (constraintsPayload.evDischargeBudgetW != null &&
+            constraintsPayload.evDischargeBudgetW !== 0) ||
+          (sourcePayload.evDischargeBudgetW != null && sourcePayload.evDischargeBudgetW !== 0) ||
+          (constraintsPayload.maxExportW != null && constraintsPayload.maxExportW !== 0) ||
+          (sourcePayload.maxExportW != null && sourcePayload.maxExportW !== 0),
         emergencyCurtailment:
           (sourcePayload.flags as Record<string, unknown> | undefined)?.emergencyCurtailment ===
           true,
       },
       reason:
-        (typeof sourcePayload.reason === 'string' && sourcePayload.reason) ||
-        'ode_compat_intake',
+        (typeof sourcePayload.reason === 'string' && sourcePayload.reason) || 'ode_compat_intake',
       metadata:
         sourcePayload.metadata &&
         typeof sourcePayload.metadata === 'object' &&
@@ -393,25 +399,20 @@ export class EmsMqttBridge {
     const mqttConfig = this.config.modules.ems?.mqtt;
     const topicTemplate =
       type === 'ack'
-        ? (mqttConfig?.eventAckTopicTemplate ?? 'citrine/ems/site/<siteId>/event/ack')
-        : (mqttConfig?.eventRejectTopicTemplate ?? 'citrine/ems/site/<siteId>/event/reject');
+        ? mqttConfig?.eventAckTopicTemplate ?? 'citrine/ems/site/<siteId>/event/ack'
+        : mqttConfig?.eventRejectTopicTemplate ?? 'citrine/ems/site/<siteId>/event/reject';
     const siteId = payload.siteId ?? 'unknown';
     const publishTopic = topicTemplate.replace('<siteId>', siteId);
 
     try {
       await new Promise<void>((resolve, reject) => {
-        this.client?.publish(
-          publishTopic,
-          JSON.stringify(payload),
-          { qos: 0 },
-          (error) => {
-            if (error) {
-              reject(error);
-              return;
-            }
-            resolve();
-          },
-        );
+        this.client?.publish(publishTopic, JSON.stringify(payload), { qos: 0 }, (error) => {
+          if (error) {
+            reject(error);
+            return;
+          }
+          resolve();
+        });
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
