@@ -206,6 +206,32 @@ export class OCPPValidator {
         );
         reportPayload.evseId = 1;
       }
+
+      const profilePayload = payload as {
+        chargingProfile?: Array<{
+          chargingSchedule?: Array<{
+            chargingSchedulePeriod?: Array<Record<string, unknown>>;
+          }>;
+        }>;
+      };
+
+      let removedDynUpdateTimeCount = 0;
+      for (const chargingProfile of profilePayload.chargingProfile ?? []) {
+        for (const chargingSchedule of chargingProfile.chargingSchedule ?? []) {
+          for (const period of chargingSchedule.chargingSchedulePeriod ?? []) {
+            if ('dynUpdateTime' in period) {
+              delete period.dynUpdateTime;
+              removedDynUpdateTimeCount++;
+            }
+          }
+        }
+      }
+
+      if (removedDynUpdateTimeCount > 0) {
+        this._logger.debug(
+          `Applying compatibility patch for ReportChargingProfiles: removed dynUpdateTime from ${removedDynUpdateTimeCount} chargingSchedulePeriod entries.`,
+        );
+      }
     }
   }
 
