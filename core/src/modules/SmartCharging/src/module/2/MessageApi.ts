@@ -103,19 +103,6 @@ export class SmartChargingOcpp2Api
         }
       }
 
-      // OCPP 2.0.1 Part 2 K10.FR.06
-      if (
-        chargingProfileCriteria?.chargingProfilePurpose ===
-        ChargingProfilePurposeEnum.ChargingStationExternalConstraints
-      ) {
-        responses.push({
-          success: false,
-          payload:
-            'The CSMS SHALL NOT set chargingProfilePurpose to ChargingStationExternalConstraints.',
-        });
-        continue;
-      }
-
       const response = await this._module.sendCall(
         id,
         tenantId,
@@ -349,16 +336,6 @@ export class SmartChargingOcpp2Api
               payload: `${numExisted} ChargingProfile with stackLevel ${chargingProfile.stackLevel} and transactionId ${chargingProfile.transactionId} already exists.`,
             };
           }
-        } else if (
-          chargingProfile.chargingProfilePurpose ===
-          ChargingProfilePurposeEnum.ChargingStationExternalConstraints
-        ) {
-          // OCPP 2.0.1 Part 2 K01.FR.22
-          return {
-            success: false,
-            payload:
-              'The CSMS SHALL NOT set chargingProfilePurpose to ChargingStationExternalConstraints.',
-          };
         } else {
           // E.g., ChargingStationMaxProfile or custom
           if (

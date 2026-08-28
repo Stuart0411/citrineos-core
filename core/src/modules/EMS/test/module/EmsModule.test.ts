@@ -29,6 +29,7 @@ describe('EmsModule applyChargingPlan', () => {
       getNextChargingScheduleId: vi.fn().mockResolvedValue(2001),
       getNextStackLevel: vi.fn().mockResolvedValue(1),
       createOrUpdateChargingProfile: vi.fn().mockResolvedValue(undefined),
+      readAllByQuery: vi.fn().mockResolvedValue([{ id: 91001 }]),
     };
     deviceModelRepository = {
       readAllByQuerystring: vi.fn().mockResolvedValue([]),
@@ -191,7 +192,7 @@ describe('EmsModule applyChargingPlan', () => {
     expect((setProfileCall?.[4] as any).evseId).toBe(0);
   });
 
-  it('retries OCPP 2.1 profile with Absolute kind when Dynamic is rejected as InvalidProfile', async () => {
+  it('applies txProfileDynamicExternalLimits via UpdateDynamicSchedule', async () => {
     vi.spyOn(module, 'deriveChargingPlan').mockResolvedValue({
       siteId: 'site-1',
       sourceIntentMessageId: 'intent-apply-3',
@@ -218,36 +219,33 @@ describe('EmsModule applyChargingPlan', () => {
       ],
     } as any);
 
-    const sendCallSpy = vi
-      .spyOn(module, 'sendCall')
-      .mockResolvedValueOnce({
-        success: true,
-        payload: { status: 'Unknown' },
-      } as any)
-      .mockResolvedValueOnce({
-        success: true,
-        payload: { status: 'Rejected', statusInfo: { reasonCode: 'InvalidProfile' } },
-      } as any)
-      .mockResolvedValueOnce({
-        success: true,
-        payload: { status: 'Accepted' },
-      } as any);
+    const sendCallSpy = vi.spyOn(module, 'sendCall').mockResolvedValue({
+      success: true,
+      payload: { status: 'Accepted' },
+    } as any);
 
     const result = await module.applyChargingPlan(1, {
       siteId: 'site-1',
       stationIds: ['cs-apply-3'],
       evseId: 2,
       strategy: 'equal_share_online',
+      profileOption: 'txProfileDynamicExternalLimits',
       chargingProfilePurpose: 'TxProfile',
       operationMode: 'ExternalLimits',
+      applicationPath: 'dynamic',
     });
 
-    const setProfileCalls = sendCallSpy.mock.calls.filter((call) => call[3] === 'SetChargingProfile');
-    expect(setProfileCalls).toHaveLength(2);
-    expect((setProfileCalls[0][4] as any).chargingProfile.chargingProfileKind).toBe('Dynamic');
-    expect((setProfileCalls[1][4] as any).chargingProfile.chargingProfileKind).toBe('Absolute');
-    expect((setProfileCalls[0][4] as any).evseId).toBe(2);
-    expect((setProfileCalls[1][4] as any).evseId).toBe(2);
+    const updateCalls = sendCallSpy.mock.calls.filter(
+      (call) => call[3] === 'UpdateDynamicSchedule',
+    );
+    expect(updateCalls).toHaveLength(1);
+    expect((updateCalls[0][4] as any).chargingProfileId).toBe(91001);
+    expect((updateCalls[0][4] as any).scheduleUpdate).toEqual(
+      expect.objectContaining({
+        limit: 3000,
+        operationMode: 'ExternalLimits',
+      }),
+    );
     expect(result?.appliedCount).toBe(1);
   });
 });

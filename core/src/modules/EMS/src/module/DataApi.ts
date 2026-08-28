@@ -52,6 +52,9 @@ const EmsAutoApplyConfigBodySchema = {
       stationIds: z.array(z.string().min(1)).min(1),
       evseId: z.number().int().min(1).default(1),
       strategy: z.enum(['equal_share_online', 'equal_share_all']).default('equal_share_online'),
+      profileOption: z
+        .enum(['maxChargingProfile', 'externalConstraints', 'txProfileDynamicExternalLimits'])
+        .optional(),
       chargingProfilePurpose: z.string().min(1).default('ChargingStationExternalConstraints'),
       operationMode: z.string().min(1).default('ExternalLimits'),
       applicationPath: z.enum(['absolute', 'dynamic']).default('absolute'),
@@ -415,6 +418,7 @@ export class EmsDataApi extends AbstractModuleApi<EmsModule> implements IEmsModu
       stationIds: request.body.stationIds,
       evseId: request.body.evseId ?? 1,
       strategy: request.body.strategy ?? 'equal_share_online',
+      profileOption: request.body.profileOption,
       chargingProfilePurpose:
         request.body.chargingProfilePurpose ?? 'ChargingStationExternalConstraints',
       operationMode: request.body.operationMode ?? 'ExternalLimits',

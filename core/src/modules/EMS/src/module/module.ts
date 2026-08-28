@@ -58,6 +58,7 @@ export type EmsAutoApplyConfig = {
   stationIds: string[];
   evseId: number;
   strategy: EmsChargingPlanRequest['strategy'];
+  profileOption?: EmsChargingPlanRequest['profileOption'];
   chargingProfilePurpose: EmsChargingPlanRequest['chargingProfilePurpose'];
   operationMode: EmsChargingPlanRequest['operationMode'];
   applicationPath: EmsChargingPlanRequest['applicationPath'];
@@ -210,6 +211,7 @@ export class EmsModule extends AbstractModule {
         stationIds: config.stationIds,
         evseId: config.evseId,
         strategy: config.strategy,
+        profileOption: config.profileOption,
         chargingProfilePurpose: config.chargingProfilePurpose,
         operationMode: config.operationMode,
         applicationPath: config.applicationPath,
@@ -227,20 +229,22 @@ export class EmsModule extends AbstractModule {
   }
 
   async deriveChargingPlan(tenantId: number, request: EmsChargingPlanRequest) {
-    return this._policyEngine.deriveChargingPlan(tenantId, request);
+    const normalizedRequest = this._normalizeChargingPlanRequest(request);
+    return this._policyEngine.deriveChargingPlan(tenantId, normalizedRequest);
   }
 
   async applyChargingPlan(
     tenantId: number,
     request: EmsChargingPlanRequest,
   ): Promise<EmsApplyChargingPlanResponse | null> {
-    const plan = await this.deriveChargingPlan(tenantId, request);
+    const normalizedRequest = this._normalizeChargingPlanRequest(request);
+    const plan = await this.deriveChargingPlan(tenantId, normalizedRequest);
     if (!plan) {
       return null;
     }
 
     const results = [] as EmsApplyChargingPlanResponse['results'];
-    const applicationPath = request.applicationPath ?? 'absolute';
+    const applicationPath = normalizedRequest.applicationPath ?? 'absolute';
 
     for (const recommendation of plan.recommendations) {
       if (!recommendation.eligible) {
@@ -294,13 +298,10 @@ export class EmsModule extends AbstractModule {
       }
 
       // Skip the application if the effective limits are unchanged from the last apply.
-      const fingerprintKey = `${tenantId}:${recommendation.stationId}:${recommendation.evseId}`;
+      const fingerprintKey = `${tenantId}:${recommendation.stationId}:${recommendation.evseId}:${recommendation.chargingProfilePurpose}`;
       const newFingerprint = JSON.stringify({
         limitW: recommendation.limitW,
         dischargeLimitW: recommendation.dischargeLimitW ?? null,
-        operationMode: recommendation.operationMode ?? null,
-        purpose: recommendation.chargingProfilePurpose,
-        evseId: recommendation.evseId,
       });
       if (this._lastAppliedFingerprints.get(fingerprintKey) === newFingerprint) {
         this._logger.debug(
@@ -331,6 +332,7 @@ export class EmsModule extends AbstractModule {
           recommendation.protocol,
           recommendation.limitW,
           recommendation.dischargeLimitW ?? null,
+          recommendation.operationMode,
         );
 
         if (dynamicApplyResult.applied) {
@@ -384,21 +386,29 @@ export class EmsModule extends AbstractModule {
         ? 0
         : recommendation.evseId;
 
-      try {
-        await this.sendCall(
-          recommendation.stationId,
-          tenantId,
-          recommendation.protocol as OCPPVersion,
-          OCPP_CallAction.ClearChargingProfile,
-          {
-            chargingProfileCriteria: {
-              chargingProfilePurpose: recommendation.chargingProfilePurpose,
-              stackLevel: 0,
-            },
-          } as OCPP2_request_types.ClearChargingProfileRequest,
-        );
-      } catch {
-        // Ignore ClearChargingProfile failures — proceed with SetChargingProfile.
+      const isMaxChargingProfile =
+        recommendation.chargingProfilePurpose ===
+        OCPP2_1.ChargingProfilePurposeEnumType.ChargingStationMaxProfile;
+
+      if (isMaxChargingProfile) {
+        try {
+          await this.sendCall(
+            recommendation.stationId,
+            tenantId,
+            recommendation.protocol as OCPPVersion,
+            OCPP_CallAction.ClearChargingProfile,
+            {
+              chargingProfileCriteria: {
+                chargingProfilePurpose:
+                  OCPP2_1.ChargingProfilePurposeEnumType.ChargingStationMaxProfile,
+                stackLevel: 0,
+                evseId: 0,
+              },
+            } as OCPP2_request_types.ClearChargingProfileRequest,
+          );
+        } catch {
+          // Ignore ClearChargingProfile failures — proceed with SetChargingProfile.
+        }
       }
 
       const validFrom = new Date().toISOString();
@@ -679,6 +689,7 @@ export class EmsModule extends AbstractModule {
     protocol: OCPPVersion | null | undefined,
     limitW: number,
     dischargeLimitW: number | null,
+    operationMode?: EmsChargingPlanRequest['operationMode'],
   ): Promise<{
     applied: boolean;
     reason: string | null;
@@ -704,6 +715,7 @@ export class EmsModule extends AbstractModule {
 
     const scheduleUpdate: OCPP2_1.ChargingScheduleUpdateType = {
       limit: limitW > 0 ? limitW : typeof dischargeLimitW === 'number' ? 100 : 0,
+      operationMode: (operationMode ?? 'ExternalLimits') as OCPP2_1.OperationModeEnumType,
       ...(typeof dischargeLimitW === 'number'
         ? { dischargeLimit: -Math.abs(dischargeLimitW) }
         : {}),
@@ -727,6 +739,36 @@ export class EmsModule extends AbstractModule {
       reason: accepted ? 'Applied UpdateDynamicSchedule' : String(confirmation.payload),
       profileId,
       payload: confirmation.payload,
+    };
+  }
+
+  private _normalizeChargingPlanRequest(request: EmsChargingPlanRequest): EmsChargingPlanRequest {
+    if (!request.profileOption) {
+      return request;
+    }
+
+    if (request.profileOption === 'maxChargingProfile') {
+      return {
+        ...request,
+        chargingProfilePurpose: OCPP2_1.ChargingProfilePurposeEnumType.ChargingStationMaxProfile,
+        applicationPath: 'absolute',
+      };
+    }
+
+    if (request.profileOption === 'externalConstraints') {
+      return {
+        ...request,
+        chargingProfilePurpose:
+          OCPP2_1.ChargingProfilePurposeEnumType.ChargingStationExternalConstraints,
+        applicationPath: 'absolute',
+      };
+    }
+
+    return {
+      ...request,
+      chargingProfilePurpose: OCPP2_1.ChargingProfilePurposeEnumType.TxProfile,
+      operationMode: 'ExternalLimits',
+      applicationPath: 'dynamic',
     };
   }
 

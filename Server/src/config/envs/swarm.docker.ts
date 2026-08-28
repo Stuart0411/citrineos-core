@@ -89,6 +89,21 @@ export function createDockerConfig() {
         host: '0.0.0.0',
         port: 8084,
       },
+      dercontrol: {
+        endpointPrefix: 'dercontrol',
+        host: '0.0.0.0',
+        port: 8091,
+        responses: [
+          OCPP_CallAction.SetDERControl,
+          OCPP_CallAction.GetDERControl,
+          OCPP_CallAction.ClearDERControl,
+        ],
+        requests: [
+          OCPP_CallAction.ReportDERControl,
+          OCPP_CallAction.NotifyDERAlarm,
+          OCPP_CallAction.NotifyDERStartStop,
+        ],
+      },
       evdriver: {
         endpointPrefix: 'evdriver',
         host: '0.0.0.0',

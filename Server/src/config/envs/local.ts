@@ -78,6 +78,19 @@ export function createLocalConfig() {
         },
         endpointPrefix: '/configuration',
       },
+      dercontrol: {
+        endpointPrefix: '/dercontrol',
+        responses: [
+          OCPP_CallAction.SetDERControl,
+          OCPP_CallAction.GetDERControl,
+          OCPP_CallAction.ClearDERControl,
+        ],
+        requests: [
+          OCPP_CallAction.ReportDERControl,
+          OCPP_CallAction.NotifyDERAlarm,
+          OCPP_CallAction.NotifyDERStartStop,
+        ],
+      },
       evdriver: {
         endpointPrefix: '/evdriver',
         enableGetChargingProfilesOnStartTransaction: true,

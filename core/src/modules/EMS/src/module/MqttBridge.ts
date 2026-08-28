@@ -289,6 +289,9 @@ export class EmsMqttBridge {
           sourcePayload.maxImportW,
           constraintsPayload.importLimitW,
           sourcePayload.importLimitW,
+          this.extractWrappedNumber(constraintsPayload.opModImportLimW),
+          this.extractWrappedNumber(sourcePayload.opModImportLimW),
+          this.extractWrappedNumber(constraintsPayload.opModImpLimW),
           this.extractWrappedNumber(sourcePayload.opModImpLimW),
         ),
         maxExportW: this.coerceOptionalNumber(
@@ -296,6 +299,9 @@ export class EmsMqttBridge {
           sourcePayload.maxExportW,
           constraintsPayload.exportLimitW,
           sourcePayload.exportLimitW,
+          this.extractWrappedNumber(constraintsPayload.opModExportLimW),
+          this.extractWrappedNumber(sourcePayload.opModExportLimW),
+          this.extractWrappedNumber(constraintsPayload.opModExpLimW),
           this.extractWrappedNumber(sourcePayload.opModExpLimW),
         ),
         evChargeBudgetW: this.coerceOptionalNumber(
@@ -323,6 +329,9 @@ export class EmsMqttBridge {
         // Infer allowDischarge when opModExpLimW or an explicit discharge budget is present.
         allowDischarge:
           (sourcePayload.flags as Record<string, unknown> | undefined)?.allowDischarge === true ||
+          this.extractWrappedNumber(constraintsPayload.opModExportLimW) != null ||
+          this.extractWrappedNumber(sourcePayload.opModExportLimW) != null ||
+          this.extractWrappedNumber(constraintsPayload.opModExpLimW) != null ||
           this.extractWrappedNumber(sourcePayload.opModExpLimW) != null ||
           (constraintsPayload.evDischargeBudgetW != null &&
             constraintsPayload.evDischargeBudgetW !== 0) ||

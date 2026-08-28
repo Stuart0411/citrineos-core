@@ -279,7 +279,9 @@ describe('EmsMqttBridge', () => {
   it('rejects duplicate incoming site intents with duplicate reason code', async () => {
     const repo = baseRepo();
     const decisionRepo = baseDecisionRepo();
-    repo.createSiteIntent.mockRejectedValue(new UniqueConstraintError({ message: 'duplicate', errors: [] }));
+    repo.createSiteIntent.mockRejectedValue(
+      new UniqueConstraintError({ message: 'duplicate', errors: [] }),
+    );
     const fakeClient = new FakeMqttClient();
     const bridge = new EmsMqttBridge(
       {
@@ -473,7 +475,7 @@ describe('EmsMqttBridge', () => {
     expect(intent.siteId).toBe('site-topic');
   });
 
-  it('normalizes opModImpLimW and opModExpLimW wrapped values', async () => {
+  it('normalizes opModImportLimW and opModExportLimW wrapped values', async () => {
     const repo = baseRepo();
     const decisionRepo = baseDecisionRepo();
     const fakeClient = new FakeMqttClient();
@@ -508,8 +510,8 @@ describe('EmsMqttBridge', () => {
       'citrine/ems/site/nexus/intent/current',
       Buffer.from(
         JSON.stringify({
-          opModExpLimW: { source: 'csipAus', value: 5000 },
-          opModImpLimW: { source: 'csipAus', value: 0 },
+          opModExportLimW: { source: 'csipAus', value: 5000 },
+          opModImportLimW: { source: 'csipAus', value: 0 },
         }),
       ),
     );

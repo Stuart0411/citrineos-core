@@ -19,11 +19,18 @@ export const EmsOperationModeSchema = z.enum([
 
 export const EmsApplicationPathSchema = z.enum(['absolute', 'dynamic']);
 
+export const EmsProfileOptionSchema = z.enum([
+  'maxChargingProfile',
+  'externalConstraints',
+  'txProfileDynamicExternalLimits',
+]);
+
 export const EmsChargingPlanRequestSchema = z.object({
   siteId: z.string().min(1),
   stationIds: z.array(z.string().min(1)).min(1),
   evseId: z.number().int().min(1).default(1),
   strategy: EmsChargingPlanStrategySchema.default('equal_share_online'),
+  profileOption: EmsProfileOptionSchema.optional(),
   chargingProfilePurpose: ChargingProfilePurposeEnumSchema.default('ChargingStationMaxProfile'),
   operationMode: EmsOperationModeSchema.default('ExternalLimits'),
   applicationPath: EmsApplicationPathSchema.default('absolute'),

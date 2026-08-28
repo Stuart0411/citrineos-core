@@ -13,6 +13,7 @@
  *
  */
 import type { OcppRequest } from '../../../internal-types.js';
+import type { OperationModeEnumType } from '../enums/index.js';
 
 export interface UpdateDynamicScheduleRequest extends OcppRequest {
   /**
@@ -96,6 +97,11 @@ export interface ChargingScheduleUpdateType {
    *
    */
   setpointReactive_L3?: number | null;
+  /**
+   * *(2.1)* Charging operation mode to use during this interval.
+   *
+   */
+  operationMode?: OperationModeEnumType | null;
   customData?: CustomDataType | null;
 }
 /**
