@@ -156,6 +156,7 @@ export const systemConfigInputSchema = z.object({
         port: z.number().int().min(1).default(8081).optional(),
         requests: z.array(CallActionSchema).default([]).optional(),
         responses: z.array(CallActionSchema).default([]).optional(),
+        maxProfileClearSetDelayMs: z.number().int().min(0).default(750).optional(),
         intentValidation: z
           .object({
             maxAgeMs: z.number().int().min(1).default(300000).optional(),
@@ -469,6 +470,7 @@ export const systemConfigSchema = z
           port: z.number().int().min(1).optional(),
           requests: z.array(CallActionSchema),
           responses: z.array(CallActionSchema),
+          maxProfileClearSetDelayMs: z.number().int().min(0).optional(),
           intentValidation: z
             .object({
               maxAgeMs: z.number().int().min(1).optional(),

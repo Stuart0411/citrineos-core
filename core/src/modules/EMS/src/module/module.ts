@@ -47,6 +47,7 @@ import {
   SequelizeEmsSiteIntentRepository,
   SequelizeLocationRepository,
 } from '@dal/layers/sequelize/index.js';
+import { Op } from 'sequelize';
 import { IdGenerator } from '@util/util/idGenerator.js';
 import type { ILogObj } from 'tslog';
 import { Logger } from 'tslog';
@@ -83,6 +84,26 @@ export class EmsModule extends AbstractModule {
   private _autoApplyDebounceTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
   // Fingerprint per "tenantId:stationId:evseId" to skip applying unchanged limits.
   private _lastAppliedFingerprints: Map<string, string> = new Map();
+
+  private _getMaxProfileClearSetDelayMs(): number {
+    const configuredDelay = this.config.modules.ems?.maxProfileClearSetDelayMs;
+    if (
+      typeof configuredDelay === 'number' &&
+      Number.isFinite(configuredDelay) &&
+      configuredDelay >= 0
+    ) {
+      return Math.floor(configuredDelay);
+    }
+
+    return this.config.env === 'test' ? 0 : 750;
+  }
+
+  private async _sleep(ms: number): Promise<void> {
+    if (ms <= 0) {
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, ms));
+  }
 
   private static _createNoopDeviceModelRepository(): IDeviceModelRepository {
     return {
@@ -409,6 +430,10 @@ export class EmsModule extends AbstractModule {
         } catch {
           // Ignore ClearChargingProfile failures — proceed with SetChargingProfile.
         }
+
+        // Some stations process ClearChargingProfile asynchronously; wait before SetChargingProfile
+        // to avoid the new profile being cleared by the prior clear operation.
+        await this._sleep(this._getMaxProfileClearSetDelayMs());
       }
 
       const validFrom = new Date().toISOString();
@@ -851,6 +876,12 @@ export class EmsModule extends AbstractModule {
           stationId: message.context.stationId,
           isActive: true,
           chargingLimitSource: ChargingLimitSourceEnum.EMS,
+          chargingProfilePurpose: {
+            [Op.in]: [
+              OCPP2_1.ChargingProfilePurposeEnumType.ChargingStationMaxProfile,
+              OCPP2_1.ChargingProfilePurposeEnumType.ChargingStationExternalConstraints,
+            ],
+          },
         },
         returning: false,
       },

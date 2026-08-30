@@ -6,6 +6,8 @@ import { describe, expect, it, vi } from 'vitest';
 import { Logger } from 'tslog';
 import type { ICache, IMessageHandler, IMessageSender, SystemConfig } from '@citrineos/base';
 import { ChargingLimitSourceEnum, OCPPVersion } from '@citrineos/base';
+import { OCPP2_1 } from '@citrineos/base';
+import { Op } from 'sequelize';
 import { EmsModule } from '../../../src/modules/EMS/src/module/module.js';
 
 describe('EmsModule.applyChargingPlan', () => {
@@ -36,14 +38,16 @@ describe('EmsModule.applyChargingPlan', () => {
       createOrUpdateChargingProfile: vi.fn().mockResolvedValue(undefined),
     } as any;
     const cache = {
-      get: vi
-        .fn()
-        .mockResolvedValueOnce(JSON.stringify({ protocol: 'ocpp2.1' }))
-        .mockResolvedValueOnce(JSON.stringify({ protocol: 'ocpp2.0.1' })),
+      get: vi.fn().mockImplementation((identifier: string) => {
+        if (identifier.includes('station-b')) {
+          return Promise.resolve(JSON.stringify({ protocol: 'ocpp2.0.1' }));
+        }
+        return Promise.resolve(JSON.stringify({ protocol: 'ocpp2.1' }));
+      }),
       set: vi.fn(),
     } as any as ICache;
     const sender = {
-      sendRequest: vi.fn().mockResolvedValue({ success: true, payload: 'queued' }),
+      sendRequest: vi.fn().mockResolvedValue({ success: true, payload: { status: 'Accepted' } }),
       sendResponse: vi.fn(),
       send: vi.fn(),
       shutdown: vi.fn().mockResolvedValue(undefined),
@@ -85,7 +89,7 @@ describe('EmsModule.applyChargingPlan', () => {
       operationMode: 'ExternalLimits',
     });
 
-    expect(sender.sendRequest).toHaveBeenCalledTimes(2);
+    expect(sender.sendRequest).toHaveBeenCalledTimes(4);
     expect(response).toMatchObject({
       appliedCount: 2,
       results: [
@@ -112,9 +116,9 @@ describe('EmsModule.applyChargingPlan', () => {
       readAllByQuery: vi.fn(),
     } as any;
     const locationRepo = {
-      getChargingStationsByIds: vi.fn().mockResolvedValue([
-        { id: 'station-c', isOnline: true, protocol: 'ocpp1.6' },
-      ]),
+      getChargingStationsByIds: vi
+        .fn()
+        .mockResolvedValue([{ id: 'station-c', isOnline: true, protocol: 'ocpp1.6' }]),
     } as any;
     const emsDecisionRepo = {
       createDecision: vi.fn().mockResolvedValue(undefined),
@@ -176,8 +180,7 @@ describe('EmsModule.applyChargingPlan', () => {
           stationId: 'station-c',
           applied: false,
           success: false,
-          reason:
-            'Station protocol ocpp1.6 is not compatible with EMS charging-profile fallback',
+          reason: 'Station protocol ocpp1.6 is not compatible with EMS charging-profile fallback',
         }),
       ],
     });
@@ -252,6 +255,12 @@ describe('EmsModule.applyChargingPlan', () => {
         where: expect.objectContaining({
           stationId: 'station-a',
           chargingLimitSource: ChargingLimitSourceEnum.EMS,
+          chargingProfilePurpose: {
+            [Op.in]: [
+              OCPP2_1.ChargingProfilePurposeEnumType.ChargingStationMaxProfile,
+              OCPP2_1.ChargingProfilePurposeEnumType.ChargingStationExternalConstraints,
+            ],
+          },
         }),
       }),
     );
@@ -266,9 +275,9 @@ describe('EmsModule.applyChargingPlan', () => {
       }),
     } as any;
     const locationRepo = {
-      getChargingStationsByIds: vi.fn().mockResolvedValue([
-        { id: 'station-a', isOnline: true, protocol: 'ocpp2.1' },
-      ]),
+      getChargingStationsByIds: vi
+        .fn()
+        .mockResolvedValue([{ id: 'station-a', isOnline: true, protocol: 'ocpp2.1' }]),
     } as any;
     const emsDecisionRepo = {
       createDecision: vi.fn().mockResolvedValue(undefined),
@@ -297,7 +306,12 @@ describe('EmsModule.applyChargingPlan', () => {
       } as any as SystemConfig,
       { get: vi.fn(), set: vi.fn() } as any,
       { sendRequest: vi.fn(), sendResponse: vi.fn(), send: vi.fn(), shutdown: vi.fn() } as any,
-      { handle: vi.fn(), subscribe: vi.fn().mockResolvedValue(true), shutdown: vi.fn(), module: undefined } as any,
+      {
+        handle: vi.fn(),
+        subscribe: vi.fn().mockResolvedValue(true),
+        shutdown: vi.fn(),
+        module: undefined,
+      } as any,
       new Logger({ name: 'EmsModuleApplyPlanTest' }),
       undefined,
       emsRepo,
@@ -318,7 +332,14 @@ describe('EmsModule.applyChargingPlan', () => {
 
     expect(response).toMatchObject({
       driftedCount: 1,
-      results: [expect.objectContaining({ stationId: 'station-a', drifted: true, plannedLimitW: 9000, actualLimitW: 5000 })],
+      results: [
+        expect.objectContaining({
+          stationId: 'station-a',
+          drifted: true,
+          plannedLimitW: 9000,
+          actualLimitW: 5000,
+        }),
+      ],
     });
     expect(emsDecisionRepo.createDecision).toHaveBeenCalledWith(
       1,
