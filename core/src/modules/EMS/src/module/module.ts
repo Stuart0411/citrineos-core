@@ -95,7 +95,7 @@ export class EmsModule extends AbstractModule {
       return Math.floor(configuredDelay);
     }
 
-    return this.config.env === 'test' ? 0 : 750;
+    return 750;
   }
 
   private async _sleep(ms: number): Promise<void> {
