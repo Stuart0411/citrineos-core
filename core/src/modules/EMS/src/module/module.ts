@@ -672,11 +672,11 @@ export class EmsModule extends AbstractModule {
     };
   }
 
-  private async _findDynamicChargingProfileId(
+  private async _findDynamicChargingProfile(
     tenantId: number,
     stationId: string,
     evseId: number,
-  ): Promise<number | null> {
+  ): Promise<Record<string, unknown> | null> {
     const dynamicKind = OCPP2_1.ChargingProfileKindEnumType.Dynamic;
     const byEvse = await this._chargingProfileRepository.readAllByQuery(tenantId, {
       where: {
@@ -703,8 +703,7 @@ export class EmsModule extends AbstractModule {
         })
       )[0];
 
-    const profileId = Number((candidate as { id?: unknown } | undefined)?.id);
-    return Number.isInteger(profileId) && profileId > 0 ? profileId : null;
+    return (candidate as Record<string, unknown> | undefined) ?? null;
   }
 
   private async _applyDynamicSchedule(
@@ -729,8 +728,13 @@ export class EmsModule extends AbstractModule {
       };
     }
 
-    const profileId = await this._findDynamicChargingProfileId(tenantId, stationId, evseId);
-    if (!profileId) {
+    const activeDynamicProfile = await this._findDynamicChargingProfile(
+      tenantId,
+      stationId,
+      evseId,
+    );
+    const profileId = Number((activeDynamicProfile as { id?: unknown } | null)?.id);
+    if (!Number.isInteger(profileId) || profileId <= 0) {
       return {
         applied: false,
         reason: 'No active Dynamic charging profile found to update.',
@@ -738,9 +742,33 @@ export class EmsModule extends AbstractModule {
       };
     }
 
+    const activePeriod = (
+      activeDynamicProfile as {
+        chargingSchedule?: Array<{ chargingSchedulePeriod?: Array<Record<string, unknown>> }>;
+      }
+    ).chargingSchedule?.[0]?.chargingSchedulePeriod?.[0] as Record<string, unknown> | undefined;
+    const existingSetpoint =
+      typeof activePeriod?.setpoint === 'number' ? (activePeriod.setpoint as number) : undefined;
+    const existingOperationMode =
+      typeof activePeriod?.operationMode === 'string'
+        ? (activePeriod.operationMode as OCPP2_1.OperationModeEnumType)
+        : undefined;
+
+    const requestedOperationMode = operationMode as OCPP2_1.OperationModeEnumType | undefined;
+    const resolvedOperationMode =
+      existingSetpoint !== undefined &&
+      requestedOperationMode === OCPP2_1.OperationModeEnumType.ExternalLimits &&
+      (existingOperationMode === OCPP2_1.OperationModeEnumType.CentralSetpoint ||
+        existingOperationMode === OCPP2_1.OperationModeEnumType.ExternalSetpoint)
+        ? existingOperationMode
+        : requestedOperationMode ??
+          existingOperationMode ??
+          OCPP2_1.OperationModeEnumType.ExternalLimits;
+
     const scheduleUpdate: OCPP2_1.ChargingScheduleUpdateType = {
       limit: limitW > 0 ? limitW : typeof dischargeLimitW === 'number' ? 100 : 0,
-      operationMode: (operationMode ?? 'ExternalLimits') as OCPP2_1.OperationModeEnumType,
+      operationMode: resolvedOperationMode,
+      ...(existingSetpoint !== undefined ? { setpoint: existingSetpoint } : {}),
       ...(typeof dischargeLimitW === 'number'
         ? { dischargeLimit: -Math.abs(dischargeLimitW) }
         : {}),
