@@ -768,11 +768,12 @@ export class EmsModule extends AbstractModule {
       };
     }
 
-    const periods = activeDynamicProfile.chargingSchedule?.[0]?.chargingSchedulePeriod ?? [];
-    const periodWithSetpoint = periods.find((period) => {
-      const candidate = period?.setpoint ?? period?.setPoint;
-      return toFiniteNumber(candidate) !== undefined;
-    });
+    const periods = (activeDynamicProfile.chargingSchedule ?? []).flatMap(
+      (schedule) => schedule.chargingSchedulePeriod ?? [],
+    );
+    const periodWithSetpoint = periods.find(
+      (period) => toFiniteNumber(period?.setpoint ?? period?.setPoint) !== undefined,
+    );
     const activePeriod = periodWithSetpoint ?? periods[0];
     const existingSetpoint = toFiniteNumber(activePeriod?.setpoint ?? activePeriod?.setPoint);
     const existingOperationMode =
