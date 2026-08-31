@@ -4,7 +4,7 @@
 
 import { OCPPVersion } from '@citrineos/base';
 import { Logger } from 'tslog';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EmsModule } from '../../src/module/module.js';
 
 describe('EmsModule applyChargingPlan', () => {
@@ -76,6 +76,10 @@ describe('EmsModule applyChargingPlan', () => {
       deviceModelRepository,
       stationEnergyTransferPolicyRepository,
     );
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it('includes dischargeLimit in OCPP 2.1 charging profile when export is allowed', async () => {
@@ -394,5 +398,34 @@ describe('EmsModule applyChargingPlan', () => {
         operationMode: 'ExternalSetpoint',
       }),
     );
+  });
+
+  it('runs auto-apply under continuous rapid intent notifications', async () => {
+    vi.useFakeTimers();
+
+    const applySpy = vi
+      .spyOn(module, 'applyChargingPlan')
+      .mockResolvedValue({ appliedCount: 1, results: [] } as any);
+
+    module.setAutoApplyConfig(1, {
+      siteId: 'nexus',
+      stationIds: ['10919352'],
+      evseId: 1,
+      strategy: 'equal_share_online',
+      chargingProfilePurpose: 'TxProfile',
+      operationMode: 'ExternalLimits',
+      applicationPath: 'dynamic',
+      enabled: true,
+    });
+
+    await module.maybeAutoApply(1, 'nexus');
+    await module.maybeAutoApply(1, 'nexus');
+    await module.maybeAutoApply(1, 'nexus');
+
+    expect(applySpy).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(2100);
+
+    expect(applySpy).toHaveBeenCalledTimes(1);
   });
 });

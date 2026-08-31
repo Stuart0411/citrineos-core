@@ -220,10 +220,11 @@ export class EmsModule extends AbstractModule {
       return;
     }
     const key = `${tenantId}:${siteId}`;
-    // Debounce: cancel any pending call for this site and schedule a fresh one.
+    // Debounce once per site: keep a pending timer instead of resetting on every MQTT message.
+    // This avoids starvation when intents arrive more frequently than the debounce interval.
     const existing = EmsModule._autoApplyDebounceTimers.get(key);
     if (existing) {
-      clearTimeout(existing);
+      return;
     }
     const debounceMs = (this.config as any).modules?.ems?.autoApplyDebounceMs ?? 2000;
     const timer = setTimeout(() => {
