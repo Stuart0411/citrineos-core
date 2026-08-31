@@ -317,6 +317,13 @@ describe('EmsModule applyChargingPlan', () => {
         operationMode: 'CentralSetpoint',
       }),
     );
+
+    expect(chargingProfileRepository.readAllByQuery).toHaveBeenCalledWith(
+      1,
+      expect.objectContaining({
+        include: [{ association: 'chargingSchedule', required: false }],
+      }),
+    );
   });
 
   it('preserves existing setpoint when stored as string/camel-case field', async () => {

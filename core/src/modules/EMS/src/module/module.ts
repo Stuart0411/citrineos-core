@@ -696,13 +696,21 @@ export class EmsModule extends AbstractModule {
     evseId: number,
   ): Promise<DynamicProfileSnapshot | null> {
     const dynamicKind = OCPP2_1.ChargingProfileKindEnumType.Dynamic;
+    const dynamicProfileQuery = {
+      isActive: true,
+      chargingProfileKind: dynamicKind,
+    };
+
+    // Load schedules with the profile so existing setpoint context can be preserved.
+    const includeChargingSchedules = [{ association: 'chargingSchedule', required: false }];
+
     const byEvse = await this._chargingProfileRepository.readAllByQuery(tenantId, {
       where: {
         stationId,
         evseId,
-        isActive: true,
-        chargingProfileKind: dynamicKind,
+        ...dynamicProfileQuery,
       },
+      include: includeChargingSchedules,
       order: [['updatedAt', 'DESC']],
       limit: 1,
     });
@@ -713,9 +721,9 @@ export class EmsModule extends AbstractModule {
         await this._chargingProfileRepository.readAllByQuery(tenantId, {
           where: {
             stationId,
-            isActive: true,
-            chargingProfileKind: dynamicKind,
+            ...dynamicProfileQuery,
           },
+          include: includeChargingSchedules,
           order: [['updatedAt', 'DESC']],
           limit: 1,
         })
