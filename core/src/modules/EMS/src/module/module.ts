@@ -66,6 +66,13 @@ export type EmsAutoApplyConfig = {
   enabled: boolean;
 };
 
+type DynamicProfileSnapshot = {
+  id?: unknown;
+  chargingSchedule?: Array<{
+    chargingSchedulePeriod?: Array<Record<string, unknown>>;
+  }>;
+};
+
 export class EmsModule extends AbstractModule {
   _requests: CallAction[] = [];
   _responses: CallAction[] = [];
@@ -676,7 +683,7 @@ export class EmsModule extends AbstractModule {
     tenantId: number,
     stationId: string,
     evseId: number,
-  ): Promise<Record<string, unknown> | null> {
+  ): Promise<DynamicProfileSnapshot | null> {
     const dynamicKind = OCPP2_1.ChargingProfileKindEnumType.Dynamic;
     const byEvse = await this._chargingProfileRepository.readAllByQuery(tenantId, {
       where: {
@@ -703,7 +710,7 @@ export class EmsModule extends AbstractModule {
         })
       )[0];
 
-    return (candidate as Record<string, unknown> | undefined) ?? null;
+    return (candidate as DynamicProfileSnapshot | undefined) ?? null;
   }
 
   private async _applyDynamicSchedule(
@@ -733,7 +740,15 @@ export class EmsModule extends AbstractModule {
       stationId,
       evseId,
     );
-    const profileId = Number((activeDynamicProfile as { id?: unknown } | null)?.id);
+    if (!activeDynamicProfile) {
+      return {
+        applied: false,
+        reason: 'No active Dynamic charging profile found to update.',
+        profileId: null,
+      };
+    }
+
+    const profileId = Number(activeDynamicProfile?.id);
     if (!Number.isInteger(profileId) || profileId <= 0) {
       return {
         applied: false,
@@ -742,11 +757,7 @@ export class EmsModule extends AbstractModule {
       };
     }
 
-    const activePeriod = (
-      activeDynamicProfile as {
-        chargingSchedule?: Array<{ chargingSchedulePeriod?: Array<Record<string, unknown>> }>;
-      }
-    ).chargingSchedule?.[0]?.chargingSchedulePeriod?.[0] as Record<string, unknown> | undefined;
+    const activePeriod = activeDynamicProfile.chargingSchedule?.[0]?.chargingSchedulePeriod?.[0];
     const existingSetpoint =
       typeof activePeriod?.setpoint === 'number' ? (activePeriod.setpoint as number) : undefined;
     const existingOperationMode =
