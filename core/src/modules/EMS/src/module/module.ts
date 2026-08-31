@@ -96,12 +96,12 @@ export class EmsModule extends AbstractModule {
   protected _mqttBridge: EmsMqttBridge;
   protected _policyEngine: EmsPolicyEngine;
   protected _idGenerator: IdGenerator;
-  private _autoApplyConfigs: Map<string, EmsAutoApplyConfig> = new Map();
+  private static _autoApplyConfigs: Map<string, EmsAutoApplyConfig> = new Map();
   // Prevent concurrent applications and debounce rapid MQTT intent bursts per site key.
-  private _autoApplyInFlight: Set<string> = new Set();
-  private _autoApplyDebounceTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
+  private static _autoApplyInFlight: Set<string> = new Set();
+  private static _autoApplyDebounceTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
   // Fingerprint per "tenantId:stationId:evseId" to skip applying unchanged limits.
-  private _lastAppliedFingerprints: Map<string, string> = new Map();
+  private static _lastAppliedFingerprints: Map<string, string> = new Map();
 
   private _getMaxProfileClearSetDelayMs(): number {
     const configuredDelay = this.config.modules.ems?.maxProfileClearSetDelayMs;
@@ -197,40 +197,40 @@ export class EmsModule extends AbstractModule {
   }
 
   setAutoApplyConfig(tenantId: number, config: EmsAutoApplyConfig): void {
-    this._autoApplyConfigs.set(`${tenantId}:${config.siteId}`, config);
+    EmsModule._autoApplyConfigs.set(`${tenantId}:${config.siteId}`, config);
   }
 
   getAutoApplyConfig(tenantId: number, siteId: string): EmsAutoApplyConfig | undefined {
-    return this._autoApplyConfigs.get(`${tenantId}:${siteId}`);
+    return EmsModule._autoApplyConfigs.get(`${tenantId}:${siteId}`);
   }
 
   getAllAutoApplyConfigs(tenantId: number): EmsAutoApplyConfig[] {
-    return Array.from(this._autoApplyConfigs.entries())
+    return Array.from(EmsModule._autoApplyConfigs.entries())
       .filter(([key]) => key.startsWith(`${tenantId}:`))
       .map(([, value]) => value);
   }
 
   removeAutoApplyConfig(tenantId: number, siteId: string): void {
-    this._autoApplyConfigs.delete(`${tenantId}:${siteId}`);
+    EmsModule._autoApplyConfigs.delete(`${tenantId}:${siteId}`);
   }
 
   async maybeAutoApply(tenantId: number, siteId: string): Promise<void> {
-    const config = this._autoApplyConfigs.get(`${tenantId}:${siteId}`);
+    const config = EmsModule._autoApplyConfigs.get(`${tenantId}:${siteId}`);
     if (!config || !config.enabled || config.stationIds.length === 0) {
       return;
     }
     const key = `${tenantId}:${siteId}`;
     // Debounce: cancel any pending call for this site and schedule a fresh one.
-    const existing = this._autoApplyDebounceTimers.get(key);
+    const existing = EmsModule._autoApplyDebounceTimers.get(key);
     if (existing) {
       clearTimeout(existing);
     }
     const debounceMs = (this.config as any).modules?.ems?.autoApplyDebounceMs ?? 2000;
     const timer = setTimeout(() => {
-      this._autoApplyDebounceTimers.delete(key);
+      EmsModule._autoApplyDebounceTimers.delete(key);
       void this._runAutoApply(tenantId, siteId, config);
     }, debounceMs);
-    this._autoApplyDebounceTimers.set(key, timer);
+    EmsModule._autoApplyDebounceTimers.set(key, timer);
   }
 
   private async _runAutoApply(
@@ -239,11 +239,11 @@ export class EmsModule extends AbstractModule {
     config: EmsAutoApplyConfig,
   ): Promise<void> {
     const key = `${tenantId}:${siteId}`;
-    if (this._autoApplyInFlight.has(key)) {
+    if (EmsModule._autoApplyInFlight.has(key)) {
       this._logger.debug(`EMS auto-apply already in flight for ${key}, skipping.`);
       return;
     }
-    this._autoApplyInFlight.add(key);
+    EmsModule._autoApplyInFlight.add(key);
     try {
       await this.applyChargingPlan(tenantId, {
         siteId: config.siteId,
@@ -263,7 +263,7 @@ export class EmsModule extends AbstractModule {
         `EMS auto-apply failed for site ${siteId}: ${err instanceof Error ? err.message : String(err)}`,
       );
     } finally {
-      this._autoApplyInFlight.delete(key);
+      EmsModule._autoApplyInFlight.delete(key);
     }
   }
 
@@ -342,7 +342,7 @@ export class EmsModule extends AbstractModule {
         limitW: recommendation.limitW,
         dischargeLimitW: recommendation.dischargeLimitW ?? null,
       });
-      if (this._lastAppliedFingerprints.get(fingerprintKey) === newFingerprint) {
+      if (EmsModule._lastAppliedFingerprints.get(fingerprintKey) === newFingerprint) {
         this._logger.debug(
           `EMS skipping unchanged profile for ${recommendation.stationId} evse=${recommendation.evseId}`,
         );
@@ -375,7 +375,7 @@ export class EmsModule extends AbstractModule {
         );
 
         if (dynamicApplyResult.applied) {
-          this._lastAppliedFingerprints.set(fingerprintKey, newFingerprint);
+          EmsModule._lastAppliedFingerprints.set(fingerprintKey, newFingerprint);
         }
 
         results.push({
@@ -540,7 +540,7 @@ export class EmsModule extends AbstractModule {
           (confirmation.payload as { status?: string } | undefined)?.status === 'Accepted');
 
       if (applied) {
-        this._lastAppliedFingerprints.set(fingerprintKey, newFingerprint);
+        EmsModule._lastAppliedFingerprints.set(fingerprintKey, newFingerprint);
       }
 
       await this._chargingProfileRepository.createOrUpdateChargingProfile(
