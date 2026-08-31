@@ -318,4 +318,74 @@ describe('EmsModule applyChargingPlan', () => {
       }),
     );
   });
+
+  it('preserves existing setpoint when stored as string/camel-case field', async () => {
+    chargingProfileRepository.readAllByQuery = vi.fn().mockResolvedValueOnce([
+      {
+        id: 93001,
+        chargingSchedule: [
+          {
+            chargingSchedulePeriod: [
+              {
+                setPoint: '4150',
+                operationMode: 'ExternalSetpoint',
+              },
+            ],
+          },
+        ],
+      },
+    ]);
+
+    vi.spyOn(module, 'deriveChargingPlan').mockResolvedValue({
+      siteId: 'site-1',
+      sourceIntentMessageId: 'intent-apply-5',
+      totalBudgetW: 10000,
+      eligibleStationCount: 1,
+      strategy: 'equal_share_online',
+      recommendations: [
+        {
+          stationId: 'cs-apply-5',
+          isOnline: true,
+          protocol: OCPPVersion.OCPP2_1,
+          eligible: true,
+          eligibilityReason: null,
+          evseId: 2,
+          chargingProfilePurpose: 'TxProfile',
+          chargingProfileKind: 'Dynamic',
+          chargingRateUnit: 'W',
+          operationMode: 'ExternalLimits',
+          limitW: 2900,
+          exportAllowed: false,
+          dischargeLimitW: null,
+          sourceIntentMessageId: 'intent-apply-5',
+        },
+      ],
+    } as any);
+
+    const sendCallSpy = vi.spyOn(module, 'sendCall').mockResolvedValue({
+      success: true,
+      payload: { status: 'Accepted' },
+    } as any);
+
+    await module.applyChargingPlan(1, {
+      siteId: 'site-1',
+      stationIds: ['cs-apply-5'],
+      evseId: 2,
+      strategy: 'equal_share_online',
+      profileOption: 'txProfileDynamicExternalLimits',
+      chargingProfilePurpose: 'TxProfile',
+      operationMode: 'ExternalLimits',
+      applicationPath: 'dynamic',
+    });
+
+    const updateCall = sendCallSpy.mock.calls.find((call) => call[3] === 'UpdateDynamicSchedule');
+    expect(updateCall).toBeDefined();
+    expect((updateCall?.[4] as any).scheduleUpdate).toEqual(
+      expect.objectContaining({
+        limit: 2900,
+        setpoint: 4150,
+        operationMode: 'ExternalSetpoint',
+      }),
+    );
+  });
 });

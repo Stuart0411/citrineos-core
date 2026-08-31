@@ -73,6 +73,17 @@ type DynamicProfileSnapshot = {
   }>;
 };
 
+const toFiniteNumber = (value: unknown): number | undefined => {
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : undefined;
+  }
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+  return undefined;
+};
+
 export class EmsModule extends AbstractModule {
   _requests: CallAction[] = [];
   _responses: CallAction[] = [];
@@ -757,9 +768,13 @@ export class EmsModule extends AbstractModule {
       };
     }
 
-    const activePeriod = activeDynamicProfile.chargingSchedule?.[0]?.chargingSchedulePeriod?.[0];
-    const existingSetpoint =
-      typeof activePeriod?.setpoint === 'number' ? (activePeriod.setpoint as number) : undefined;
+    const periods = activeDynamicProfile.chargingSchedule?.[0]?.chargingSchedulePeriod ?? [];
+    const periodWithSetpoint = periods.find((period) => {
+      const candidate = period?.setpoint ?? period?.setPoint;
+      return toFiniteNumber(candidate) !== undefined;
+    });
+    const activePeriod = periodWithSetpoint ?? periods[0];
+    const existingSetpoint = toFiniteNumber(activePeriod?.setpoint ?? activePeriod?.setPoint);
     const existingOperationMode =
       typeof activePeriod?.operationMode === 'string'
         ? (activePeriod.operationMode as OCPP2_1.OperationModeEnumType)
