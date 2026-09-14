@@ -73,6 +73,15 @@ type DynamicProfileSnapshot = {
   }>;
 };
 
+type AppliedProfileFingerprintInput = {
+  applicationPath: EmsChargingPlanRequest['applicationPath'];
+  limitW: number;
+  dischargeLimitW?: number | null;
+  operationMode: EmsChargingPlanRequest['operationMode'];
+  chargingRateUnit: string;
+  exportAllowed: boolean;
+};
+
 const toFiniteNumber = (value: unknown): number | undefined => {
   if (typeof value === 'number') {
     return Number.isFinite(value) ? value : undefined;
@@ -102,6 +111,17 @@ export class EmsModule extends AbstractModule {
   private static _autoApplyDebounceTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
   // Fingerprint per "tenantId:stationId:evseId" to skip applying unchanged limits.
   private static _lastAppliedFingerprints: Map<string, string> = new Map();
+
+  private _buildAppliedProfileFingerprint(input: AppliedProfileFingerprintInput): string {
+    return JSON.stringify({
+      applicationPath: input.applicationPath,
+      limitW: input.limitW,
+      dischargeLimitW: input.dischargeLimitW ?? null,
+      operationMode: input.operationMode,
+      chargingRateUnit: input.chargingRateUnit,
+      exportAllowed: input.exportAllowed,
+    });
+  }
 
   private _getMaxProfileClearSetDelayMs(): number {
     const configuredDelay = this.config.modules.ems?.maxProfileClearSetDelayMs;
@@ -337,13 +357,21 @@ export class EmsModule extends AbstractModule {
         continue;
       }
 
-      // Skip the application if the effective limits are unchanged from the last apply.
+      // Skip unchanged absolute profiles. Dynamic intents still send UpdateDynamicSchedule
+      // because profile state can drift on the station side.
       const fingerprintKey = `${tenantId}:${recommendation.stationId}:${recommendation.evseId}:${recommendation.chargingProfilePurpose}`;
-      const newFingerprint = JSON.stringify({
+      const newFingerprint = this._buildAppliedProfileFingerprint({
+        applicationPath,
         limitW: recommendation.limitW,
         dischargeLimitW: recommendation.dischargeLimitW ?? null,
+        operationMode: recommendation.operationMode,
+        chargingRateUnit: recommendation.chargingRateUnit,
+        exportAllowed: recommendation.exportAllowed,
       });
-      if (EmsModule._lastAppliedFingerprints.get(fingerprintKey) === newFingerprint) {
+      if (
+        applicationPath !== 'dynamic' &&
+        EmsModule._lastAppliedFingerprints.get(fingerprintKey) === newFingerprint
+      ) {
         this._logger.debug(
           `EMS skipping unchanged profile for ${recommendation.stationId} evse=${recommendation.evseId}`,
         );

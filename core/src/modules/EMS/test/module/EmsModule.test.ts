@@ -400,6 +400,68 @@ describe('EmsModule applyChargingPlan', () => {
     );
   });
 
+  it('does not skip unchanged dynamic recommendations', async () => {
+    vi.spyOn(module, 'deriveChargingPlan').mockResolvedValue({
+      siteId: 'site-1',
+      sourceIntentMessageId: 'intent-apply-6',
+      totalBudgetW: 10000,
+      eligibleStationCount: 1,
+      strategy: 'equal_share_online',
+      recommendations: [
+        {
+          stationId: 'cs-apply-6',
+          isOnline: true,
+          protocol: OCPPVersion.OCPP2_1,
+          eligible: true,
+          eligibilityReason: null,
+          evseId: 2,
+          chargingProfilePurpose: 'TxProfile',
+          chargingProfileKind: 'Dynamic',
+          chargingRateUnit: 'W',
+          operationMode: 'ExternalLimits',
+          limitW: 3000,
+          exportAllowed: false,
+          dischargeLimitW: null,
+          sourceIntentMessageId: 'intent-apply-6',
+        },
+      ],
+    } as any);
+
+    const sendCallSpy = vi.spyOn(module, 'sendCall').mockResolvedValue({
+      success: true,
+      payload: { status: 'Accepted' },
+    } as any);
+
+    const first = await module.applyChargingPlan(1, {
+      siteId: 'site-1',
+      stationIds: ['cs-apply-6'],
+      evseId: 2,
+      strategy: 'equal_share_online',
+      profileOption: 'txProfileDynamicExternalLimits',
+      chargingProfilePurpose: 'TxProfile',
+      operationMode: 'ExternalLimits',
+      applicationPath: 'dynamic',
+    });
+
+    const second = await module.applyChargingPlan(1, {
+      siteId: 'site-1',
+      stationIds: ['cs-apply-6'],
+      evseId: 2,
+      strategy: 'equal_share_online',
+      profileOption: 'txProfileDynamicExternalLimits',
+      chargingProfilePurpose: 'TxProfile',
+      operationMode: 'ExternalLimits',
+      applicationPath: 'dynamic',
+    });
+
+    const updateCalls = sendCallSpy.mock.calls.filter(
+      (call) => call[3] === 'UpdateDynamicSchedule',
+    );
+    expect(updateCalls).toHaveLength(2);
+    expect(first?.appliedCount).toBe(1);
+    expect(second?.appliedCount).toBe(1);
+  });
+
   it('runs auto-apply under continuous rapid intent notifications', async () => {
     vi.useFakeTimers();
 
