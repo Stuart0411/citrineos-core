@@ -18,6 +18,8 @@ export const ChargingProfileSchema = BaseSchema.extend({
   id: z.number().int().optional(),
   chargingProfileKind: ChargingProfileKindEnumSchema,
   chargingProfilePurpose: ChargingProfilePurposeEnumSchema,
+  dynUpdateInterval: z.number().int().nullable().optional(),
+  dynUpdateTime: z.iso.datetime().nullable().optional(),
   recurrencyKind: RecurrencyKindEnumSchema.nullable().optional(),
   stackLevel: z.number().int(),
   validFrom: z.iso.datetime().nullable().optional(),

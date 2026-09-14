@@ -6,6 +6,12 @@
 export { BaseModelWithTenant } from './BaseModelWithTenant.js';
 export { Boot } from './Boot.js';
 export { ChangeConfiguration } from './ChangeConfiguration.js';
+export { DerControl } from './DerControl.js';
+export { DerEvent } from './DerEvent.js';
+export { EmsDecision } from './EmsDecision.js';
+export { EmsSiteIntent } from './EmsSiteIntent.js';
+export { StationDerCapability } from './StationDerCapability.js';
+export { StationEnergyTransferPolicy } from './StationEnergyTransferPolicy.js';
 export { OCPPMessage } from './OCPPMessage.js';
 export { Reservation } from './Reservation.js';
 export { SecurityEvent } from './SecurityEvent.js';

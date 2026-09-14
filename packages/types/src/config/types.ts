@@ -131,6 +131,22 @@ export const systemConfigInputSchema = z.object({
       host: z.string().default('localhost').optional(),
       port: z.number().int().min(1).default(8081).optional(),
     }),
+    dercontrol: z
+      .object({
+        endpointPrefix: z.string().default(EventGroup.DerControl).optional(),
+        host: z.string().default('localhost').optional(),
+        port: z.number().int().min(1).default(8081).optional(),
+        requests: z.array(CallActionSchema).default([]).optional(),
+        responses: z.array(CallActionSchema).default([]).optional(),
+        policy: z
+          .object({
+            enforceSupportedControlTypes: z.boolean().default(false).optional(),
+            supportedControlTypes: z.array(z.string()).optional(),
+            requireExplicitControlSelectorOnClear: z.boolean().default(true).optional(),
+          })
+          .optional(),
+      })
+      .optional(),
     evdriver: z.object({
       endpointPrefix: z.string().default(EventGroup.EVDriver).optional(),
       host: z.string().default('localhost').optional(),
@@ -141,6 +157,43 @@ export const systemConfigInputSchema = z.object({
       excludedResponses: z.array(CallActionSchema).optional(),
       enableGetChargingProfilesOnStartTransaction: z.boolean().default(true).optional(),
     }),
+    ems: z
+      .object({
+        endpointPrefix: z.string().default(EventGroup.Ems).optional(),
+        host: z.string().default('localhost').optional(),
+        port: z.number().int().min(1).default(8081).optional(),
+        requests: z.array(CallActionSchema).default([]).optional(),
+        responses: z.array(CallActionSchema).default([]).optional(),
+        maxProfileClearSetDelayMs: z.number().int().min(0).default(750).optional(),
+        intentValidation: z
+          .object({
+            maxAgeMs: z.number().int().min(1).default(300000).optional(),
+            maxFutureSkewMs: z.number().int().min(0).default(30000).optional(),
+            maxPowerW: z.number().nonnegative().default(1000000).optional(),
+          })
+          .optional(),
+        mqtt: z
+          .object({
+            enabled: z.boolean().default(false).optional(),
+            brokerUrl: z.string().optional(),
+            clientId: z.string().optional(),
+            username: z.string().optional(),
+            password: z.string().optional(),
+            siteIntentsTopic: z.string().default('citrine/ems/site/+/intent/current').optional(),
+            eventAckTopicTemplate: z
+              .string()
+              .default('citrine/ems/site/<siteId>/event/ack')
+              .optional(),
+            eventRejectTopicTemplate: z
+              .string()
+              .default('citrine/ems/site/<siteId>/event/reject')
+              .optional(),
+            connectTimeoutMs: z.number().int().min(1).default(5000).optional(),
+            startupMode: z.enum(['non_fatal', 'required']).default('non_fatal').optional(),
+          })
+          .optional(),
+      })
+      .optional(),
     monitoring: z.object({
       endpointPrefix: z.string().default(EventGroup.Monitoring).optional(),
       host: z.string().default('localhost').optional(),
@@ -180,6 +233,15 @@ export const systemConfigInputSchema = z.object({
         excludedRequests: z.array(CallActionSchema).optional(),
         excludedResponses: z.array(CallActionSchema).optional(),
         ocppRouterBaseUrl: z.string().optional(),
+      })
+      .optional(),
+    v2x: z
+      .object({
+        endpointPrefix: z.string().default(EventGroup.V2x).optional(),
+        host: z.string().default('localhost').optional(),
+        port: z.number().int().min(1).default(8081).optional(),
+        requests: z.array(CallActionSchema).default([]).optional(),
+        responses: z.array(CallActionSchema).default([]).optional(),
       })
       .optional(),
     transactions: z.object({
@@ -402,6 +464,22 @@ export const systemConfigSchema = z
           excludedResponses: z.array(CallActionSchema).optional(),
         })
         .optional(),
+      dercontrol: z
+        .object({
+          endpointPrefix: z.string(),
+          host: z.string().optional(),
+          port: z.number().int().min(1).optional(),
+          requests: z.array(CallActionSchema),
+          responses: z.array(CallActionSchema),
+          policy: z
+            .object({
+              enforceSupportedControlTypes: z.boolean().optional(),
+              supportedControlTypes: z.array(z.string()).optional(),
+              requireExplicitControlSelectorOnClear: z.boolean().optional(),
+            })
+            .optional(),
+        })
+        .optional(),
       evdriver: z.object({
         endpointPrefix: z.string(),
         host: z.string().optional(),
@@ -412,6 +490,37 @@ export const systemConfigSchema = z
         excludedResponses: z.array(CallActionSchema).optional(),
         enableGetChargingProfilesOnStartTransaction: z.boolean().optional(),
       }),
+      ems: z
+        .object({
+          endpointPrefix: z.string(),
+          host: z.string().optional(),
+          port: z.number().int().min(1).optional(),
+          requests: z.array(CallActionSchema),
+          responses: z.array(CallActionSchema),
+          maxProfileClearSetDelayMs: z.number().int().min(0).optional(),
+          intentValidation: z
+            .object({
+              maxAgeMs: z.number().int().min(1).optional(),
+              maxFutureSkewMs: z.number().int().min(0).optional(),
+              maxPowerW: z.number().nonnegative().optional(),
+            })
+            .optional(),
+          mqtt: z
+            .object({
+              enabled: z.boolean().optional(),
+              brokerUrl: z.string().optional(),
+              clientId: z.string().optional(),
+              username: z.string().optional(),
+              password: z.string().optional(),
+              siteIntentsTopic: z.string().optional(),
+              eventAckTopicTemplate: z.string().optional(),
+              eventRejectTopicTemplate: z.string().optional(),
+              connectTimeoutMs: z.number().int().min(1).optional(),
+              startupMode: z.enum(['non_fatal', 'required']).optional(),
+            })
+            .optional(),
+        })
+        .optional(),
       configuration: z
         .object({
           heartbeatInterval: z.number().int().min(1),
@@ -505,6 +614,15 @@ export const systemConfigSchema = z
         excludedResponses: z.array(CallActionSchema).optional(),
         ocppRouterBaseUrl: z.string().optional(),
       }),
+      v2x: z
+        .object({
+          endpointPrefix: z.string(),
+          host: z.string().optional(),
+          port: z.number().int().min(1).optional(),
+          requests: z.array(CallActionSchema),
+          responses: z.array(CallActionSchema),
+        })
+        .optional(),
       transactions: z
         .object({
           endpointPrefix: z.string(),

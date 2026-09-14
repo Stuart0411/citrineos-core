@@ -89,7 +89,15 @@ export async function validateChargingProfileType(
     }
     const evse = await deviceModelRepository.findEvseByIdAndConnectorId(tenantId, evseId, null);
     if (!evse) {
-      throw new Error(`Evse ${evseId} not found.`);
+      if (chargingProfileType.chargingSchedule.length > 1) {
+        throw new Error(
+          `Evse ${evseId} not found. Multiple ChargingScheduleType entries require EVSE and ChargingNeeds context.`,
+        );
+      }
+      logger.info(
+        `Evse ${evseId} not found for station ${stationId}. Proceeding with single-schedule TxProfile without ChargingNeeds lookup (non-fatal fallback).`,
+      );
+      return;
     }
     logger.info(`Found evse: ${JSON.stringify(evse)}`);
     receivedChargingNeeds =

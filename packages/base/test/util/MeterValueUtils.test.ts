@@ -205,6 +205,43 @@ describe('MeterValueUtils', () => {
         ];
         expect(MeterValueUtils.getTotalKwh(meterValues, 0)).toBe(100); // 200kWh - 100kWh = 100kWh
       });
+
+      it('ignores unsupported units such as PERCENT without throwing', () => {
+        const meterValues: MeterValueDto[] = [
+          {
+            timestamp: '2025-05-29T12:01:00Z',
+            sampledValue: [
+              {
+                measurand: 'Energy.Active.Import.Register',
+                value: 50,
+                unitOfMeasure: { unit: 'PERCENT', multiplier: 0 },
+              },
+            ],
+          },
+          {
+            timestamp: '2025-05-29T12:02:00Z',
+            sampledValue: [
+              {
+                measurand: 'Energy.Active.Import.Register',
+                value: 100,
+                unitOfMeasure: { unit: 'kWh', multiplier: 0 },
+              },
+            ],
+          },
+          {
+            timestamp: '2025-05-29T12:03:00Z',
+            sampledValue: [
+              {
+                measurand: 'Energy.Active.Import.Register',
+                value: 200,
+                unitOfMeasure: { unit: 'kWh', multiplier: 0 },
+              },
+            ],
+          },
+        ];
+
+        expect(MeterValueUtils.getTotalKwh(meterValues, 0)).toBe(100);
+      });
     });
 
     it('returns 0 for empty meter values', () => {

@@ -59,6 +59,18 @@ export class ChargingProfile extends Model implements ChargingProfileDto {
   @Column(DataType.STRING)
   declare chargingProfilePurpose: ChargingProfilePurposeEnumType;
 
+  @Column(DataType.INTEGER)
+  declare dynUpdateInterval?: number | null;
+
+  @Column({
+    type: DataType.DATE,
+    get() {
+      const dynUpdateTime: Date = this.getDataValue('dynUpdateTime');
+      return dynUpdateTime ? dynUpdateTime.toISOString() : null;
+    },
+  })
+  declare dynUpdateTime?: string | null;
+
   @Column(DataType.STRING)
   declare recurrencyKind?: RecurrencyKindEnumType | null;
 

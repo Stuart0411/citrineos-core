@@ -16,7 +16,11 @@ import {
   OCPP2_0_1,
   OCPP_CallAction,
   SetMonitoringStatusEnum,
-} from '@citrineos/types';
+} from '@citrineos/base';
+import { UniqueConstraintError } from 'sequelize';
+import { Sequelize } from 'sequelize-typescript';
+import type { ILogObj } from 'tslog';
+import { Logger } from 'tslog';
 
 export class SequelizeVariableMonitoringRepository
   extends SequelizeRepository<VariableMonitoring>
@@ -267,16 +271,53 @@ export class SequelizeVariableMonitoringRepository
     variableId: string,
     ocppConnectionName: string,
   ): Promise<EventData> {
-    return await this.eventData.create(
+    const payload = {
       tenantId,
-      EventData.build({
-        tenantId,
-        ocppConnectionName: ocppConnectionName,
-        variableId,
-        componentId,
-        ...event,
-      }),
-    );
+      stationId,
+      variableId,
+      componentId,
+      ...event,
+    };
+
+    return await this.s.transaction(async (transaction) => {
+      const existing = await this.s.models[EventData.MODEL_NAME].findOne({
+        where: {
+          tenantId,
+          stationId,
+          eventId: event.eventId,
+        },
+        transaction,
+      });
+
+      if (existing) {
+        await existing.update(payload, { transaction });
+        return existing as EventData;
+      }
+
+      try {
+        return await this.eventData.create(tenantId, EventData.build(payload));
+      } catch (error) {
+        if (!(error instanceof UniqueConstraintError)) {
+          throw error;
+        }
+
+        const raced = await this.s.models[EventData.MODEL_NAME].findOne({
+          where: {
+            tenantId,
+            stationId,
+            eventId: event.eventId,
+          },
+          transaction,
+        });
+
+        if (!raced) {
+          throw error;
+        }
+
+        await raced.update(payload, { transaction });
+        return raced as EventData;
+      }
+    });
   }
 }
 

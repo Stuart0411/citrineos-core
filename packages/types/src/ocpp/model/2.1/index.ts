@@ -403,7 +403,9 @@ export { default as PublishFirmwareStatusNotificationResponseSchema } from './sc
 export type { PullDynamicScheduleUpdateRequest } from './types/PullDynamicScheduleUpdateRequest.js';
 export { default as PullDynamicScheduleUpdateRequestSchema } from './schemas/PullDynamicScheduleUpdateRequest.json' with { type: 'json' };
 export type { PullDynamicScheduleUpdateResponse } from './types/PullDynamicScheduleUpdateResponse.js';
-export { default as PullDynamicScheduleUpdateResponseSchema } from './schemas/PullDynamicScheduleUpdateResponse.json' with { type: 'json' };
+// PullDynamicScheduleUpdateResponseSchema commented out to avoid AJV conflict with UpdateDynamicScheduleRequest
+// Both define ChargingScheduleUpdateType. The type export above is sufficient for TypeScript.
+// export { default as PullDynamicScheduleUpdateResponseSchema } from './schemas/PullDynamicScheduleUpdateResponse.json' with { type: 'json' };
 export type {
   ChargingScheduleUpdateType,
   UpdateDynamicScheduleRequest,

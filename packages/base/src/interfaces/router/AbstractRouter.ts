@@ -240,6 +240,9 @@ export abstract class AbstractMessageRouter implements IMessageRouter {
     message: Call,
     protocol: string,
   ): { isValid: boolean; errors?: ErrorObject[] | null } {
+    const action = message[2];
+    let payload = message[3];
+
     let protocolEnum: OCPPVersion | undefined;
     switch (protocol) {
       case OCPPVersion.OCPP1_6:
@@ -256,7 +259,12 @@ export abstract class AbstractMessageRouter implements IMessageRouter {
         return { isValid: false };
     }
 
-    return this._ocppValidator.validateOCPPRequest(message.action, message.payload, protocolEnum);
+    // Sanitize payload before validation to remove invalid additionalIdToken entries
+    payload = this._ocppValidator.sanitizeOCPPPayload(payload);
+    // Update the message with sanitized payload so it's used downstream
+    message[3] = payload;
+
+    return this._ocppValidator.validateOCPPRequest(action, payload, protocolEnum);
   }
 
   /**

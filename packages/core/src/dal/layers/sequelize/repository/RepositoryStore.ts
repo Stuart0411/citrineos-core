@@ -13,7 +13,13 @@ import type {
   IChargingProfileRepository,
   IChargingStationSequenceRepository,
   IDeleteCertificateAttemptRepository,
+  IDerControlRepository,
+  IDerEventRepository,
+  IEmsDecisionRepository,
   IDeviceModelRepository,
+  IEmsSiteIntentRepository,
+  IStationDerCapabilityRepository,
+  IStationEnergyTransferPolicyRepository,
   IInstallCertificateAttemptRepository,
   IInstalledCertificateRepository,
   ILocalAuthListRepository,
@@ -60,6 +66,27 @@ import { SequelizeTariffRepository } from './Tariff.js';
 import { SequelizeTenantRepository } from './Tenant.js';
 import { SequelizeTransactionEventRepository } from './TransactionEvent.js';
 import { SequelizeVariableMonitoringRepository } from './VariableMonitoring.js';
+import { Sequelize } from 'sequelize-typescript';
+import { Component } from '../model/DeviceModel/Component.js';
+import { TransactionEvent } from '../model/TransactionEvent/TransactionEvent.js';
+import { SequelizeRepository } from './Base.js';
+import { SequelizeReservationRepository } from './Reservation.js';
+import { SequelizeLocalAuthListRepository } from './LocalAuthList.js';
+import { SequelizeChargingStationSequenceRepository } from './ChargingStationSequence.js';
+import { SequelizeChargingProfileRepository } from './ChargingProfile.js';
+import { SequelizeChangeConfigurationRepository } from './ChangeConfiguration.js';
+import { SequelizeOCPPMessageRepository } from './OCPPMessage.js';
+import { SequelizeTenantRepository } from './Tenant.js';
+import { SequelizeServerNetworkProfileRepository } from './ServerNetworkProfile.js';
+import { SequelizeInstalledCertificateRepository } from './InstalledCertificate.js';
+import { SequelizeInstallCertificateAttemptRepository } from './InstallCertificateAttempt.js';
+import { SequelizeDeleteCertificateAttemptRepository } from './DeleteCertificateAttempt.js';
+import { SequelizeDerControlRepository } from './DerControl.js';
+import { SequelizeDerEventRepository } from './DerEvent.js';
+import { SequelizeEmsDecisionRepository } from './EmsDecision.js';
+import { SequelizeEmsSiteIntentRepository } from './EmsSiteIntent.js';
+import { SequelizeStationDerCapabilityRepository } from './StationDerCapability.js';
+import { SequelizeStationEnergyTransferPolicyRepository } from './StationEnergyTransferPolicy.js';
 
 export class RepositoryStore {
   sequelizeInstance: Sequelize;
@@ -69,6 +96,12 @@ export class RepositoryStore {
   installedCertificateRepository: IInstalledCertificateRepository;
   installCertificateAttemptRepository: IInstallCertificateAttemptRepository;
   deleteCertificateAttemptRepository: IDeleteCertificateAttemptRepository;
+  derControlRepository: IDerControlRepository;
+  derEventRepository: IDerEventRepository;
+  stationDerCapabilityRepository: IStationDerCapabilityRepository;
+  stationEnergyTransferPolicyRepository: IStationEnergyTransferPolicyRepository;
+  emsDecisionRepository: IEmsDecisionRepository;
+  emsSiteIntentRepository: IEmsSiteIntentRepository;
   changeConfigurationRepository: IChangeConfigurationRepository;
   chargingProfileRepository: IChargingProfileRepository;
   chargingStationSequenceRepository: IChargingStationSequenceRepository;
@@ -122,8 +155,34 @@ export class RepositoryStore {
       config,
       logger,
       sequelizeInstance,
-    });
-    this.chargingProfileRepository = new SequelizeChargingProfileRepository({
+    );
+    this.derControlRepository = new SequelizeDerControlRepository(
+      config,
+      logger,
+      sequelizeInstance,
+    );
+    this.derEventRepository = new SequelizeDerEventRepository(config, logger, sequelizeInstance);
+    this.stationDerCapabilityRepository = new SequelizeStationDerCapabilityRepository(
+      config,
+      logger,
+      sequelizeInstance,
+    );
+    this.stationEnergyTransferPolicyRepository = new SequelizeStationEnergyTransferPolicyRepository(
+      config,
+      logger,
+      sequelizeInstance,
+    );
+    this.emsDecisionRepository = new SequelizeEmsDecisionRepository(
+      config,
+      logger,
+      sequelizeInstance,
+    );
+    this.emsSiteIntentRepository = new SequelizeEmsSiteIntentRepository(
+      config,
+      logger,
+      sequelizeInstance,
+    );
+    this.changeConfigurationRepository = new SequelizeChangeConfigurationRepository(
       config,
       logger,
       sequelizeInstance,

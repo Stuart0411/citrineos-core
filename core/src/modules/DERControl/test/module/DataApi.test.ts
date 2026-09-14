@@ -1,0 +1,287 @@
+// SPDX-FileCopyrightText: 2026 Contributors to the CitrineOS Project
+//
+// SPDX-License-Identifier: Apache-2.0
+
+import { BadRequestError, DEFAULT_TENANT_ID } from '@citrineos/base';
+import { Op } from 'sequelize';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { DerControlDataApi } from '../../src/module/DataApi.js';
+
+vi.mock('reflect-metadata', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('reflect-metadata')>();
+  return {
+    ...actual,
+  };
+});
+
+vi.spyOn(Reflect, 'getMetadata').mockReturnValue([]);
+
+describe('DerControlDataApi', () => {
+  let derControlRepository: { readAllByQuery: ReturnType<typeof vi.fn> };
+  let derEventRepository: { readAllByQuery: ReturnType<typeof vi.fn> };
+  let stationDerCapabilityRepository: { readAllByQuery: ReturnType<typeof vi.fn> };
+  let api: DerControlDataApi;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+
+    derControlRepository = {
+      readAllByQuery: vi.fn().mockResolvedValue([]),
+    };
+    derEventRepository = {
+      readAllByQuery: vi.fn().mockResolvedValue([]),
+    };
+    stationDerCapabilityRepository = {
+      readAllByQuery: vi.fn().mockResolvedValue([]),
+    };
+
+    const moduleMock = {
+      config: {
+        modules: {
+          dercontrol: {
+            endpointPrefix: 'dercontrol',
+          },
+        },
+      },
+      derControlRepository,
+      derEventRepository,
+      stationDerCapabilityRepository,
+      summarizeStationCapability: vi.fn((value) => ({
+        stationId: value.stationId,
+        requestId: value.requestId,
+        reportedSupportedControlTypes: value.supportedControlTypesJson,
+        inferredSupportedControlTypes: ['Gradients'],
+        hasDeviceModelSnapshot: true,
+        deviceModelAttributeCount: 1,
+      })),
+    } as any;
+
+    api = new DerControlDataApi(moduleMock, {} as any);
+  });
+
+  it('maps DER control filters into repository query with bounded limit', async () => {
+    await api.getDerControls({
+      query: {
+        tenantId: 9,
+        stationId: 'cs-1',
+        controlId: 'ctrl-1',
+        controlType: 'Curve',
+        isDefault: true,
+        isSuperseded: false,
+        status: 'started',
+        fromUpdatedAt: '2026-08-18T00:00:00.000Z',
+        toUpdatedAt: '2026-08-18T01:00:00.000Z',
+        limit: 1500,
+      },
+    } as any);
+
+    expect(derControlRepository.readAllByQuery).toHaveBeenCalledTimes(1);
+    expect(derControlRepository.readAllByQuery).toHaveBeenCalledWith(
+      9,
+      expect.objectContaining({
+        where: expect.objectContaining({
+          stationId: 'cs-1',
+          controlId: 'ctrl-1',
+          controlType: 'Curve',
+          isDefault: true,
+          isSuperseded: false,
+          status: 'started',
+        }),
+        order: [['updatedAt', 'DESC']],
+        limit: 1000,
+      }),
+    );
+
+    const call = derControlRepository.readAllByQuery.mock.calls[0][1];
+    const updatedAtFilter = call.where.updatedAt as Record<symbol, Date>;
+    expect(updatedAtFilter[Op.gte]).toEqual(new Date('2026-08-18T00:00:00.000Z'));
+    expect(updatedAtFilter[Op.lte]).toEqual(new Date('2026-08-18T01:00:00.000Z'));
+  });
+
+  it('uses default tenant and lower-bounds DER control limit', async () => {
+    await api.getDerControls({
+      query: {
+        limit: 0,
+      },
+    } as any);
+
+    expect(derControlRepository.readAllByQuery).toHaveBeenCalledWith(
+      DEFAULT_TENANT_ID,
+      expect.objectContaining({
+        where: {},
+        limit: 1,
+      }),
+    );
+  });
+
+  it('throws BadRequestError for invalid DER control date windows', async () => {
+    await expect(
+      api.getDerControls({
+        query: {
+          tenantId: 1,
+          fromUpdatedAt: 'invalid-date',
+        },
+      } as any),
+    ).rejects.toBeInstanceOf(BadRequestError);
+
+    await expect(
+      api.getDerControls({
+        query: {
+          tenantId: 1,
+          fromUpdatedAt: '2026-08-18T01:00:00.000Z',
+          toUpdatedAt: '2026-08-18T00:00:00.000Z',
+        },
+      } as any),
+    ).rejects.toBeInstanceOf(BadRequestError);
+  });
+
+  it('maps DER event filters into repository query with bounded limit', async () => {
+    await api.getDerEvents({
+      query: {
+        tenantId: 7,
+        stationId: 'cs-9',
+        controlId: 'ctrl-9',
+        eventType: 'notify_der_start',
+        fromOccurredAt: '2026-08-18T02:00:00.000Z',
+        toOccurredAt: '2026-08-18T03:00:00.000Z',
+        limit: 9000,
+      },
+    } as any);
+
+    expect(derEventRepository.readAllByQuery).toHaveBeenCalledTimes(1);
+    expect(derEventRepository.readAllByQuery).toHaveBeenCalledWith(
+      7,
+      expect.objectContaining({
+        where: expect.objectContaining({
+          stationId: 'cs-9',
+          controlId: 'ctrl-9',
+          eventType: 'notify_der_start',
+        }),
+        order: [['occurredAt', 'DESC']],
+        limit: 2000,
+      }),
+    );
+
+    const call = derEventRepository.readAllByQuery.mock.calls[0][1];
+    const occurredAtFilter = call.where.occurredAt as Record<symbol, Date>;
+    expect(occurredAtFilter[Op.gte]).toEqual(new Date('2026-08-18T02:00:00.000Z'));
+    expect(occurredAtFilter[Op.lte]).toEqual(new Date('2026-08-18T03:00:00.000Z'));
+  });
+
+  it('throws BadRequestError for invalid DER event date windows', async () => {
+    await expect(
+      api.getDerEvents({
+        query: {
+          tenantId: 1,
+          toOccurredAt: 'not-a-date',
+        },
+      } as any),
+    ).rejects.toBeInstanceOf(BadRequestError);
+
+    await expect(
+      api.getDerEvents({
+        query: {
+          tenantId: 1,
+          fromOccurredAt: '2026-08-18T04:00:00.000Z',
+          toOccurredAt: '2026-08-18T03:00:00.000Z',
+        },
+      } as any),
+    ).rejects.toBeInstanceOf(BadRequestError);
+  });
+
+  it('maps station DER capability filters into repository query with bounded limit', async () => {
+    await api.getStationDerCapabilities({
+      query: {
+        tenantId: 6,
+        stationId: 'cs-6',
+        supportedControlType: 'Gradients',
+        hasDeviceModelSnapshot: true,
+        fromUpdatedAt: '2026-08-18T05:00:00.000Z',
+        toUpdatedAt: '2026-08-18T06:00:00.000Z',
+        limit: 5000,
+      },
+    } as any);
+
+    expect(stationDerCapabilityRepository.readAllByQuery).toHaveBeenCalledWith(
+      6,
+      expect.objectContaining({
+        where: expect.objectContaining({
+          stationId: 'cs-6',
+          supportedControlTypesJson: expect.any(Object),
+          deviceModelSnapshotJson: expect.any(Object),
+        }),
+        order: [['updatedAt', 'DESC']],
+        limit: 1000,
+      }),
+    );
+
+    const call = stationDerCapabilityRepository.readAllByQuery.mock.calls[0][1];
+    const supportedTypesFilter = call.where.supportedControlTypesJson as Record<symbol, string[]>;
+    expect(supportedTypesFilter[Op.contains]).toEqual(['Gradients']);
+    const deviceModelFilter = call.where.deviceModelSnapshotJson as Record<symbol, null>;
+    expect(deviceModelFilter[Op.not]).toBeNull();
+    const updatedAtFilter = call.where.updatedAt as Record<symbol, Date>;
+    expect(updatedAtFilter[Op.gte]).toEqual(new Date('2026-08-18T05:00:00.000Z'));
+    expect(updatedAtFilter[Op.lte]).toEqual(new Date('2026-08-18T06:00:00.000Z'));
+  });
+
+  it('returns summarized station DER capability rows when summary=true', async () => {
+    stationDerCapabilityRepository.readAllByQuery.mockResolvedValue([
+      {
+        toJSON: () => ({
+          stationId: 'cs-14',
+          requestId: 114,
+          updatedAt: '2026-08-18T08:00:00.000Z',
+          supportedControlTypesJson: [],
+          deviceModelSnapshotJson: {
+            sampledAttributeCount: 1,
+            attributes: [
+              {
+                variableName: 'GradientRampRate',
+              },
+            ],
+          },
+        }),
+      },
+    ]);
+
+    const result = await api.getStationDerCapabilities({
+      query: {
+        tenantId: 14,
+        summary: true,
+      },
+    } as any);
+
+    expect(result).toEqual([
+      expect.objectContaining({
+        stationId: 'cs-14',
+        requestId: 114,
+        reportedSupportedControlTypes: [],
+        inferredSupportedControlTypes: ['Gradients'],
+        hasDeviceModelSnapshot: true,
+        deviceModelAttributeCount: 1,
+      }),
+    ]);
+  });
+
+  it('throws BadRequestError for invalid station DER capability date windows', async () => {
+    await expect(
+      api.getStationDerCapabilities({
+        query: {
+          tenantId: 1,
+          fromUpdatedAt: 'bad-date',
+        },
+      } as any),
+    ).rejects.toBeInstanceOf(BadRequestError);
+
+    await expect(
+      api.getStationDerCapabilities({
+        query: {
+          tenantId: 1,
+          fromUpdatedAt: '2026-08-18T07:00:00.000Z',
+          toUpdatedAt: '2026-08-18T06:00:00.000Z',
+        },
+      } as any),
+    ).rejects.toBeInstanceOf(BadRequestError);
+  });
+});

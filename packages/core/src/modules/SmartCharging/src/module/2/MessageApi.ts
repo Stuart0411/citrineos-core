@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+import type { CallAction, IMessageConfirmation, OCPP2_request_types } from '@citrineos/base';
+import { OCPP2_1 } from '@citrineos/base';
 import {
   type IMessageConfirmation,
   type OCPP2_request_types,
@@ -114,19 +116,6 @@ export class SmartChargingOcpp2Api
           });
           continue;
         }
-      }
-
-      // OCPP 2.0.1 Part 2 K10.FR.06
-      if (
-        chargingProfileCriteria?.chargingProfilePurpose ===
-        ChargingProfilePurposeEnum.ChargingStationExternalConstraints
-      ) {
-        responses.push({
-          success: false,
-          payload:
-            'The CSMS SHALL NOT set chargingProfilePurpose to ChargingStationExternalConstraints.',
-        });
-        continue;
       }
 
       const response = await this._module.sendCall(
@@ -313,32 +302,43 @@ export class SmartChargingOcpp2Api
             };
           }
 
-          const evse = await this._module.deviceModelRepository.findEvseByIdAndConnectorId(
+          let evse = await this._module.deviceModelRepository.findEvseByIdAndConnectorId(
             tenantId,
             request.evseId,
             null,
           );
-          if (!evse) {
-            return {
-              success: false,
-              payload: `Evse ${request.evseId} not found.`,
-            };
-          }
-          this._logger.info(`Found evse: ${JSON.stringify(evse)}`);
-
-          // OCPP 2.0.1 Part 2 K01.FR.34
-          // Must have received a NotifyEVChargingNeedsReq if more than one schedule is provided
-          const receivedChargingNeeds =
-            await this._module.chargingProfileRepository.findChargingNeedsByEvseDBIdAndTransactionDBId(
-              tenantId,
-              evse.databaseId,
-              transaction.id,
+          if (!evse && transaction.evseId && transaction.evseId > 0) {
+            this._logger.info(
+              `Evse ${request.evseId} not found in device model for station ${id}. Using transaction.evseId ${transaction.evseId} for internal ChargingNeeds lookup only; OCPP request keeps evseId ${request.evseId}.`,
             );
-          if (!receivedChargingNeeds && chargingProfile.chargingSchedule.length > 1) {
-            return {
-              success: false,
-              payload: `No prior NotifyEVChargingNeedsReq found for this transaction ${transaction.id}. Only one ChargingScheduleType allowed without it.`,
-            };
+          }
+          if (!evse) {
+            if (chargingProfile.chargingSchedule.length > 1) {
+              return {
+                success: false,
+                payload: `Evse ${request.evseId} not found. Multiple ChargingScheduleType entries require EVSE and ChargingNeeds context.`,
+              };
+            }
+            this._logger.info(
+              `Evse ${request.evseId} not found for station ${id}. Proceeding with single-schedule TxProfile without ChargingNeeds lookup (non-fatal fallback).`,
+            );
+          } else {
+            this._logger.info(`Found evse: ${JSON.stringify(evse)}`);
+
+            // OCPP 2.0.1 Part 2 K01.FR.34
+            // Must have received a NotifyEVChargingNeedsReq if more than one schedule is provided
+            const receivedChargingNeeds =
+              await this._module.chargingProfileRepository.findChargingNeedsByEvseDBIdAndTransactionDBId(
+                tenantId,
+                evse.databaseId,
+                transaction.id,
+              );
+            if (!receivedChargingNeeds && chargingProfile.chargingSchedule.length > 1) {
+              return {
+                success: false,
+                payload: `No prior NotifyEVChargingNeedsReq found for this transaction ${transaction.id}. Only one ChargingScheduleType allowed without it.`,
+              };
+            }
           }
 
           // OCPP 2.0.1 Part 2 K01.FR.39
@@ -357,16 +357,6 @@ export class SmartChargingOcpp2Api
               payload: `${numExisted} ChargingProfile with stackLevel ${chargingProfile.stackLevel} and transactionId ${chargingProfile.transactionId} already exists.`,
             };
           }
-        } else if (
-          chargingProfile.chargingProfilePurpose ===
-          ChargingProfilePurposeEnum.ChargingStationExternalConstraints
-        ) {
-          // OCPP 2.0.1 Part 2 K01.FR.22
-          return {
-            success: false,
-            payload:
-              'The CSMS SHALL NOT set chargingProfilePurpose to ChargingStationExternalConstraints.',
-          };
         } else {
           // E.g., ChargingStationMaxProfile or custom
           if (
@@ -613,6 +603,71 @@ export class SmartChargingOcpp2Api
           tenantId,
           version,
           OCPP_CallAction.GetCompositeSchedule,
+          request,
+          callbackUrl,
+        );
+      }),
+    );
+  }
+
+  @AsMessageEndpoint(OCPP_CallAction.UpdateDynamicSchedule, (instance: SmartChargingOcpp2Api) =>
+    getOcpp2Schema(
+      (instance._ocppVersion ?? DEFAULT_VERSION) as Exclude<OCPPVersion, OCPPVersion.OCPP1_6>,
+      'UpdateDynamicScheduleRequestSchema',
+    ),
+  )
+  async updateDynamicSchedule(
+    identifier: string[],
+    request: OCPP2_1.UpdateDynamicScheduleRequest,
+    callbackUrl?: string,
+    tenantId: number = DEFAULT_TENANT_ID,
+  ): Promise<IMessageConfirmation[]> {
+    // Process each station individually
+    return Promise.all(
+      identifier.map(async (id) => {
+        this._logger.info(
+          `Received UpdateDynamicSchedule for station ${id}: ${JSON.stringify(request)}`,
+        );
+
+        // Verify the profile exists and is Dynamic
+        const profiles = await this._module.chargingProfileRepository.readAllByQuery(tenantId, {
+          where: {
+            id: request.chargingProfileId,
+            tenantId,
+          },
+        });
+
+        if (!profiles || profiles.length === 0) {
+          return {
+            success: false,
+            payload: `No charging profile found with ID ${request.chargingProfileId}`,
+          };
+        }
+
+        const profile = profiles[0];
+
+        // Cast to string since DB type is based on OCPP 2.0.1 enum
+        if ((profile.chargingProfileKind as string) !== 'Dynamic') {
+          return {
+            success: false,
+            payload: `Profile ${request.chargingProfileId} is not a Dynamic profile (kind: ${profile.chargingProfileKind})`,
+          };
+        }
+
+        // Validate station matches
+        if (profile.stationId !== id) {
+          return {
+            success: false,
+            payload: `Profile ${request.chargingProfileId} belongs to station ${profile.stationId}, not ${id}`,
+          };
+        }
+
+        // Send the update to the station
+        return this._module.sendCall(
+          id,
+          tenantId,
+          OCPPVersion.OCPP2_1,
+          OCPP_CallAction.UpdateDynamicSchedule,
           request,
           callbackUrl,
         );

@@ -24,6 +24,8 @@ export interface ChargingProfileInput {
   stackLevel: number;
   chargingProfilePurpose: keyof typeof ChargingProfilePurposeEnum;
   chargingProfileKind: keyof typeof ChargingProfileKindEnum;
+  dynUpdateInterval?: number | null;
+  dynUpdateTime?: string | null;
   recurrencyKind?: keyof typeof RecurrencyKindEnum | null;
   validFrom?: string | null;
   validTo?: string | null;
@@ -53,6 +55,21 @@ export interface ChargingSchedulePeriodInput {
   limit: number;
   numberPhases?: number | null;
   phaseToUse?: number | null;
+  operationMode?: OCPP2_1.OperationModeEnumType | null;
+  limit_L2?: number | null;
+  limit_L3?: number | null;
+  setpoint?: number | null;
+  setpoint_L2?: number | null;
+  setpoint_L3?: number | null;
+  setpointReactive?: number | null;
+  setpointReactive_L2?: number | null;
+  setpointReactive_L3?: number | null;
+  dischargeLimit?: number | null;
+  dischargeLimit_L2?: number | null;
+  dischargeLimit_L3?: number | null;
+  v2xBaseline?: number | null;
+  v2xFreqWattCurve?: unknown;
+  v2xSignalWattCurve?: unknown;
 }
 
 export interface SalesTariffInput {
@@ -155,6 +172,7 @@ export class ChargingProfileMapper {
   static fromChargingProfileType(
     chargingProfile: OCPP2_0_1.ChargingProfileType | OCPP2_1.ChargingProfileType,
   ): ChargingProfileInput {
+    const dynamicChargingProfile = chargingProfile as OCPP2_1.ChargingProfileType;
     return {
       id: chargingProfile.id,
       stackLevel: chargingProfile.stackLevel,
@@ -164,6 +182,8 @@ export class ChargingProfileMapper {
       chargingProfileKind: ChargingProfileMapper.fromChargingProfileKindEnumType(
         chargingProfile.chargingProfileKind,
       ),
+      dynUpdateInterval: dynamicChargingProfile.dynUpdateInterval,
+      dynUpdateTime: dynamicChargingProfile.dynUpdateTime,
       recurrencyKind: ChargingProfileMapper.fromRecurrencyKindEnumType(
         chargingProfile.recurrencyKind,
       ),
@@ -188,10 +208,7 @@ export class ChargingProfileMapper {
         schedule.chargingRateUnit,
       ),
       chargingSchedulePeriod: schedule.chargingSchedulePeriod.map((period) => ({
-        startPeriod: period.startPeriod,
-        limit: period.limit,
-        numberPhases: period.numberPhases,
-        phaseToUse: period.phaseToUse,
+        ...(period as OCPP2_1.ChargingSchedulePeriodType),
       })) as [ChargingSchedulePeriodInput, ...ChargingSchedulePeriodInput[]],
       minChargingRate: schedule.minChargingRate,
       salesTariff: schedule.salesTariff
@@ -237,7 +254,12 @@ export class ChargingProfileMapper {
   static toChargingProfileType(
     chargingProfile: ChargingProfileDto,
     transactionId?: string | null,
-  ): OCPP2_0_1.ChargingProfileType {
+  ): OCPP2_0_1.ChargingProfileType | OCPP2_1.ChargingProfileType {
+    const profileWithDynamicFields = chargingProfile as ChargingProfileDto & {
+      dynUpdateInterval?: number | null;
+      dynUpdateTime?: string | null;
+    };
+
     return {
       id: chargingProfile.id!,
       stackLevel: chargingProfile.stackLevel,
@@ -247,6 +269,8 @@ export class ChargingProfileMapper {
       chargingProfileKind: ChargingProfileMapper.toChargingProfileKindEnumType(
         chargingProfile.chargingProfileKind,
       ),
+      dynUpdateInterval: profileWithDynamicFields.dynUpdateInterval,
+      dynUpdateTime: profileWithDynamicFields.dynUpdateTime,
       recurrencyKind: ChargingProfileMapper.toRecurrencyKindEnumType(
         chargingProfile.recurrencyKind,
       ),
@@ -262,14 +286,16 @@ export class ChargingProfileMapper {
   /**
    * Converts a native ChargingScheduleDto to OCPP2_0_1.ChargingScheduleType.
    */
-  static toChargingScheduleType(schedule: ChargingScheduleDto): OCPP2_0_1.ChargingScheduleType {
+  static toChargingScheduleType(
+    schedule: ChargingScheduleDto,
+  ): OCPP2_0_1.ChargingScheduleType | OCPP2_1.ChargingScheduleType {
     return {
       id: schedule.id!,
       startSchedule: schedule.startSchedule,
       duration: schedule.duration,
       chargingRateUnit: ChargingProfileMapper.toChargingRateUnitEnumType(schedule.chargingRateUnit),
       chargingSchedulePeriod:
-        schedule.chargingSchedulePeriod as OCPP2_0_1.ChargingScheduleType['chargingSchedulePeriod'],
+        schedule.chargingSchedulePeriod as OCPP2_1.ChargingScheduleType['chargingSchedulePeriod'],
       minChargingRate: schedule.minChargingRate,
       salesTariff: schedule.salesTariff
         ? {
@@ -282,6 +308,6 @@ export class ChargingProfileMapper {
             ],
           }
         : undefined,
-    };
+    } as OCPP2_0_1.ChargingScheduleType | OCPP2_1.ChargingScheduleType;
   }
 }

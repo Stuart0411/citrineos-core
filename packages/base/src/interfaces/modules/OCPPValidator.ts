@@ -23,6 +23,8 @@ import {
 import { OcppError } from '@ocpp/rpc/message.js';
 
 export class OCPPValidator {
+  private static readonly ADDITIONAL_ID_TOKEN_PATTERN = /^[a-zA-Z0-9*\-_=:+|@.]*$/;
+
   protected _ajv: Ajv;
   protected readonly _logger: Logger<ILogObj>;
 
@@ -149,6 +151,8 @@ export class OCPPValidator {
         return { isValid: false };
     }
 
+    this.applyRuntimeCompatibilityPatches(action, payload, protocol);
+
     if (schema) {
       let validate = this._ajv.getSchema(schema['$id']);
       if (!validate) {
@@ -189,6 +193,51 @@ export class OCPPValidator {
     } else {
       this._logger.error('No schema found for action', action, payload);
       return { isValid: false };
+    }
+  }
+
+  private applyRuntimeCompatibilityPatches(
+    action: CallAction,
+    payload: OcppRequest,
+    protocol: OCPPVersion,
+  ): void {
+    if (
+      action === OCPP_CallAction.ReportChargingProfiles &&
+      (protocol === OCPPVersion.OCPP2_0_1 || protocol === OCPPVersion.OCPP2_1)
+    ) {
+      const reportPayload = payload as { evseId?: unknown };
+      if (reportPayload.evseId === 0) {
+        this._logger.debug(
+          'Applying compatibility patch for ReportChargingProfiles: remapping evseId 0 to 1 for schema/runtime compatibility.',
+        );
+        reportPayload.evseId = 1;
+      }
+
+      const profilePayload = payload as {
+        chargingProfile?: Array<{
+          chargingSchedule?: Array<{
+            chargingSchedulePeriod?: Array<Record<string, unknown>>;
+          }>;
+        }>;
+      };
+
+      let removedDynUpdateTimeCount = 0;
+      for (const chargingProfile of profilePayload.chargingProfile ?? []) {
+        for (const chargingSchedule of chargingProfile.chargingSchedule ?? []) {
+          for (const period of chargingSchedule.chargingSchedulePeriod ?? []) {
+            if ('dynUpdateTime' in period) {
+              delete period.dynUpdateTime;
+              removedDynUpdateTimeCount++;
+            }
+          }
+        }
+      }
+
+      if (removedDynUpdateTimeCount > 0) {
+        this._logger.debug(
+          `Applying compatibility patch for ReportChargingProfiles: removed dynUpdateTime from ${removedDynUpdateTimeCount} chargingSchedulePeriod entries.`,
+        );
+      }
     }
   }
 
@@ -256,6 +305,7 @@ export class OCPPValidator {
   public sanitizeOCPPPayload<T extends OcppRequest | OcppResponse>(message: T): T {
     this._logger.debug('Sanitizing OCPP message: ', message);
     const sanitizedMessage = this.removeNulls(message);
+    this.removeInvalidAdditionalIdToken(sanitizedMessage);
     this._logger.debug('Sanitized OCPP message: ', sanitizedMessage);
     return sanitizedMessage;
   }
@@ -274,6 +324,51 @@ export class OCPPValidator {
       result[key as keyof T] = this.removeNulls(value);
     }
     return result;
+  }
+
+  // Workaround: some stations send additionalIdToken values that violate the OCPP pattern.
+  // We drop only the invalid additionalInfo entries so TransactionEvent can still be processed.
+  private removeInvalidAdditionalIdToken<T>(obj: T): void {
+    if (!obj || typeof obj !== 'object') {
+      return;
+    }
+
+    if (Array.isArray(obj)) {
+      for (const item of obj) {
+        this.removeInvalidAdditionalIdToken(item);
+      }
+      return;
+    }
+
+    const mutableObj = obj as Record<string, unknown>;
+    const idToken = mutableObj['idToken'] as Record<string, unknown> | undefined;
+    if (idToken && Array.isArray(idToken['additionalInfo'])) {
+      const additionalInfo = idToken['additionalInfo'] as Record<string, unknown>[];
+      const originalLength = additionalInfo.length;
+      const filteredAdditionalInfo = additionalInfo.filter((info) => {
+        const additionalIdToken = info?.['additionalIdToken'];
+        if (typeof additionalIdToken !== 'string') {
+          return true;
+        }
+        return OCPPValidator.ADDITIONAL_ID_TOKEN_PATTERN.test(additionalIdToken);
+      });
+
+      if (filteredAdditionalInfo.length !== originalLength) {
+        this._logger.debug(
+          `Removed ${originalLength - filteredAdditionalInfo.length} invalid additionalInfo entries from idToken.additionalInfo`,
+        );
+      }
+
+      if (filteredAdditionalInfo.length > 0) {
+        idToken['additionalInfo'] = filteredAdditionalInfo;
+      } else {
+        delete idToken['additionalInfo'];
+      }
+    }
+
+    for (const value of Object.values(mutableObj)) {
+      this.removeInvalidAdditionalIdToken(value);
+    }
   }
 
   // Recursively fix $ref in schema to ensure they are compatible with Ajv when compiling

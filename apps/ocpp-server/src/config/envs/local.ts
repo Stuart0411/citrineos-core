@@ -77,6 +77,19 @@ export function createLocalConfig() {
         },
         endpointPrefix: '/configuration',
       },
+      dercontrol: {
+        endpointPrefix: '/dercontrol',
+        responses: [
+          OCPP_CallAction.SetDERControl,
+          OCPP_CallAction.GetDERControl,
+          OCPP_CallAction.ClearDERControl,
+        ],
+        requests: [
+          OCPP_CallAction.ReportDERControl,
+          OCPP_CallAction.NotifyDERAlarm,
+          OCPP_CallAction.NotifyDERStartStop,
+        ],
+      },
       evdriver: {
         endpointPrefix: '/evdriver',
         enableGetChargingProfilesOnStartTransaction: true,
@@ -98,6 +111,28 @@ export function createLocalConfig() {
           OCPP_CallAction.ReservationStatusUpdate,
           OCPP_CallAction.VatNumberValidation,
         ],
+      },
+      ems: {
+        endpointPrefix: '/ems',
+        requests: [],
+        responses: [],
+        intentValidation: {
+          maxAgeMs: 300000,
+          maxFutureSkewMs: 30000,
+          maxPowerW: 1000000,
+        },
+        mqtt: {
+          enabled: true,
+          brokerUrl: 'mqtt://192.168.1.254:1883',
+          clientId: 'citrine-ems-manual',
+          username: 'liam',
+          password: 'Nexus2025',
+          siteIntentsTopic: 'citrine/ems/site/+/intent/current',
+          eventAckTopicTemplate: 'citrine/ems/site/<siteId>/event/ack',
+          eventRejectTopicTemplate: 'citrine/ems/site/<siteId>/event/reject',
+          connectTimeoutMs: 5000,
+          startupMode: 'non_fatal',
+        },
       },
       monitoring: {
         endpointPrefix: '/monitoring',

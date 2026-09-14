@@ -42,7 +42,8 @@ import {
   OCPP_CallAction,
   OCPPVersion,
   RetryMessageError,
-} from '@citrineos/types';
+  RetryMessageErrorCode,
+} from '@citrineos/base';
 import type { ILocationRepository } from '@dal/interfaces/repositories.js';
 import {
   CallHandledOutcome,
@@ -437,7 +438,7 @@ export class MessageRouterImpl extends AbstractMessageRouter implements IMessage
           identifier,
           message,
         );
-        throw new RetryMessageError('Call already in progress');
+        throw new RetryMessageError('Call already in progress', RetryMessageErrorCode.CallInProgress);
       }
     } else {
       recordOcppCallSent(String(action), protocol, CallSentOutcome.Rejected);
@@ -1024,9 +1025,17 @@ export class MessageRouterImpl extends AbstractMessageRouter implements IMessage
   private async emitMessage(message: IMessage<any>): Promise<IMessageConfirmation> {
     let confirmation: IMessageConfirmation;
     if (message.payload instanceof OcppError) {
-      // No error routing currently done
-      this._logger.warn('OCPP Error routing not implemented');
-      confirmation = { success: false };
+      // Route selected call errors to modules for fallback/reconciliation handling.
+      if (
+        message.action === OCPP_CallAction.GetDERControl ||
+        message.action === OCPP_CallAction.AFRRSignal
+      ) {
+        confirmation = await this._sender.send(message);
+      } else {
+        // No generic error routing currently done
+        this._logger.warn('OCPP Error routing not implemented');
+        confirmation = { success: false };
+      }
     } else {
       confirmation = await this._sender.send(message);
     }

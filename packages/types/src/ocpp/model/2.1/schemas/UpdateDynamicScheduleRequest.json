@@ -3,6 +3,32 @@
   "description": "Id of dynamic charging profile to update.\r\n",
   "comment": "OCPP 2.1 Edition 1 (c) OCA, Creative Commons Attribution-NoDerivatives 4.0 International Public License",
   "definitions": {
+    "OperationModeEnumType": {
+      "description": "*(2.1)* Charging operation mode to use during this interval.\r\n",
+      "javaType": "OperationModeEnum",
+      "type": "string",
+      "additionalProperties": false,
+      "enum": [
+        "Idle",
+        "ChargingOnly",
+        "CentralSetpoint",
+        "ExternalSetpoint",
+        "ExternalLimits",
+        "CentralFrequency",
+        "LocalFrequency",
+        "LocalLoadBalancing"
+      ],
+      "tsEnumNames": [
+        "Idle",
+        "ChargingOnly",
+        "CentralSetpoint",
+        "ExternalSetpoint",
+        "ExternalLimits",
+        "CentralFrequency",
+        "LocalFrequency",
+        "LocalLoadBalancing"
+      ]
+    },
     "ChargingScheduleUpdateType": {
       "description": "Updates to a ChargingSchedulePeriodType for dynamic charging profiles.\r\n\r\n",
       "javaType": "ChargingScheduleUpdate",
@@ -59,6 +85,9 @@
         "setpointReactive_L3": {
           "description": "*(2.1)* Setpoint for reactive power (or current) in _chargingRateUnit_ that the EV should follow on phase L3 as closely as possible. \r\n",
           "type": "number"
+        },
+        "operationMode": {
+          "$ref": "#/definitions/OperationModeEnumType"
         },
         "customData": {
           "$ref": "#/definitions/CustomDataType"

@@ -29,8 +29,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          ref: feature/deploy-immutable-server
 
       - name: Set release tag
         id: tag
@@ -38,10 +36,12 @@ jobs:
         run: |
           TAG="${{ github.event.inputs.release_tag }}"
           LATEST="${{ github.event.inputs.publish_latest }}"
+
           if [[ -z "${TAG}" ]]; then
             echo "Tag cannot be empty" >&2
             exit 1
           fi
+
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
           echo "publish_latest=${LATEST}" >> "$GITHUB_OUTPUT"
 
@@ -50,7 +50,8 @@ jobs:
         shell: bash
         run: |
           IMAGE_NAME="ghcr.io/${GITHUB_REPOSITORY_OWNER}/citrineos-server"
-          echo "image_name=$(echo ${IMAGE_NAME} | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
+          IMAGE_NAME_LOWER="$(echo "${IMAGE_NAME}" | tr '[:upper:]' '[:lower:]')"
+          echo "image_name=${IMAGE_NAME_LOWER}" >> "$GITHUB_OUTPUT"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3

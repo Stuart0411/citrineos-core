@@ -32,11 +32,12 @@ import {
   OCPP_CallAction,
   OCPPVersion,
   RetryMessageError,
-} from '@citrineos/types';
-import { MessageRouterImpl } from '@modules/OcppRouter/src/module/router.js';
-import { WebhookDispatcher } from '@modules/OcppRouter/src/module/webhook.dispatcher.js';
-import { createTestContainer, getTestInstance } from '@test/testContainer.js';
-import { type Mocked, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+  RetryMessageErrorCode,
+} from '@citrineos/base';
+import type { ILocationRepository } from '@citrineos/core';
+import { afterEach, beforeEach, describe, expect, it, type Mocked, vi } from 'vitest';
+import { MessageRouterImpl } from '../../src/module/router.js';
+import { WebhookDispatcher } from '../../src/module/webhook.dispatcher.js';
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -571,9 +572,14 @@ describe('MessageRouterImpl', () => {
       cache.get.mockResolvedValue(null); // not rejected
       cache.existsAnyInNamespace.mockResolvedValue(true); // call in progress
 
-      await expect(
-        router.sendCall(STATION_ID, TENANT_ID, PROTOCOL, action, payload, CORRELATION_ID),
-      ).rejects.toThrow(RetryMessageError);
+      try {
+        await router.sendCall(STATION_ID, TENANT_ID, PROTOCOL, action, payload, CORRELATION_ID);
+        expect.fail('Expected sendCall to throw RetryMessageError');
+      } catch (error) {
+        expect(error).toBeInstanceOf(RetryMessageError);
+        expect((error as Error).message).toBe('Call already in progress');
+        expect((error as RetryMessageError).code).toBe(RetryMessageErrorCode.CallInProgress);
+      }
     });
 
     it('should return success false when boot status is Rejected', async () => {
@@ -1110,6 +1116,52 @@ describe('MessageRouterImpl', () => {
         STATION_ID,
         expect.any(OcppError),
       );
+    });
+
+    it('should route AFRRSignal call errors through sender', async () => {
+      cache.get.mockResolvedValue(null);
+
+      const message: CallError = [
+        MessageTypeId.CallError,
+        CORRELATION_ID,
+        ErrorCode.InternalError,
+        'Request Timeout',
+        {},
+      ];
+
+      const result = await (router as any)._routeCallError(
+        IDENTIFIER,
+        message,
+        OCPP_CallAction.AFRRSignal,
+        new Date(),
+        PROTOCOL,
+      );
+
+      expect(sender.send).toHaveBeenCalled();
+      expect(result.success).toBe(true);
+    });
+
+    it('should keep non-special call errors unimplemented', async () => {
+      cache.get.mockResolvedValue(null);
+
+      const message: CallError = [
+        MessageTypeId.CallError,
+        CORRELATION_ID,
+        ErrorCode.InternalError,
+        'Request Timeout',
+        {},
+      ];
+
+      const result = await (router as any)._routeCallError(
+        IDENTIFIER,
+        message,
+        OCPP_CallAction.BootNotification,
+        new Date(),
+        PROTOCOL,
+      );
+
+      expect(sender.send).not.toHaveBeenCalled();
+      expect(result.success).toBe(false);
     });
   });
 
