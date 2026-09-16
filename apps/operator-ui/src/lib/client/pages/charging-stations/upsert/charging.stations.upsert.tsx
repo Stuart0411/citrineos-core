@@ -77,6 +77,7 @@ const ChargingStationCreateSchema = ChargingStationSchema.pick({
 
 const defaultChargingStation: ChargingStationCreate = {
   [ChargingStationProps.id]: '',
+  [ChargingStationProps.isOnline]: false,
   [ChargingStationProps.ocppConnectionName]: '',
   [ChargingStationProps.locationId]: undefined,
   [ChargingStationProps.floorLevel]: '',
