@@ -24,10 +24,11 @@ const isAlreadyExistsError = (error: unknown): boolean => {
   return (
     codes.includes('42P07') ||
     codes.includes('42710') ||
-    messages.some((message) =>
-      message.includes('already exists') ||
-      message.includes('duplicate') ||
-      message.includes('relation "stationdercapabilities_tenantid_stationid"'),
+    messages.some(
+      (message) =>
+        message.includes('already exists') ||
+        message.includes('duplicate') ||
+        message.includes('relation "stationdercapabilities_tenantid_stationid"'),
     )
   );
 };
