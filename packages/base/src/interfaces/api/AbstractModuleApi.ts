@@ -59,9 +59,8 @@ export abstract class AbstractModuleApi<T extends IModule> implements IModuleApi
     this._logger = logger
       ? logger.getSubLogger({ name: this.constructor.name })
       : new Logger<ILogObj>({ name: this.constructor.name });
-    this._ocppVersion = this.supportedVersions.find(
-      (version): version is OCPPVersion => version !== null,
-    ) ?? null;
+    this._ocppVersion =
+      this.supportedVersions.find((version): version is OCPPVersion => version !== null) ?? null;
     this._init(this._module);
   }
 
