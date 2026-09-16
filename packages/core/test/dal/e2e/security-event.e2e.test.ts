@@ -237,11 +237,11 @@ beforeAll(async () => {
     [
       "require('ts-node/register');",
       'module.exports = {',
-      "  username: process.env.BOOTSTRAP_CITRINEOS_DATABASE_USERNAME,",
-      "  password: process.env.BOOTSTRAP_CITRINEOS_DATABASE_PASSWORD,",
-      "  database: process.env.BOOTSTRAP_CITRINEOS_DATABASE_NAME,",
-      "  host: process.env.BOOTSTRAP_CITRINEOS_DATABASE_HOST,",
-      "  port: Number(process.env.BOOTSTRAP_CITRINEOS_DATABASE_PORT),",
+      '  username: process.env.BOOTSTRAP_CITRINEOS_DATABASE_USERNAME,',
+      '  password: process.env.BOOTSTRAP_CITRINEOS_DATABASE_PASSWORD,',
+      '  database: process.env.BOOTSTRAP_CITRINEOS_DATABASE_NAME,',
+      '  host: process.env.BOOTSTRAP_CITRINEOS_DATABASE_HOST,',
+      '  port: Number(process.env.BOOTSTRAP_CITRINEOS_DATABASE_PORT),',
       "  dialect: 'postgres',",
       '  logging: true,',
       '};',
@@ -280,9 +280,9 @@ beforeAll(async () => {
   execSync(
     `corepack pnpm exec sequelize-cli db:migrate --debug --config "${sequelizeConfigPath}" --migrations-path dist/migrations`,
     {
-    cwd: SERVER_ROOT,
-    env: buildTestEnv(),
-    stdio: 'inherit',
+      cwd: SERVER_ROOT,
+      env: buildTestEnv(),
+      stdio: 'inherit',
     },
   );
 

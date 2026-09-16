@@ -149,7 +149,7 @@ export class SequelizeChargingProfileRepository
           throw error;
         }
         this.logger.warn(
-            `ChargingSchedule delete count mismatch during profile refresh for station ${ocppConnectionName} profile ${chargingProfile.id}. Continuing with idempotent cleanup.`,
+          `ChargingSchedule delete count mismatch during profile refresh for station ${ocppConnectionName} profile ${chargingProfile.id}. Continuing with idempotent cleanup.`,
         );
       }
 
@@ -165,7 +165,7 @@ export class SequelizeChargingProfileRepository
             throw error;
           }
           this.logger.warn(
-              `SalesTariff delete count mismatch during profile refresh for station ${ocppConnectionName} schedule ${deletedSchedule.databaseId}. Continuing with idempotent cleanup.`,
+            `SalesTariff delete count mismatch during profile refresh for station ${ocppConnectionName} schedule ${deletedSchedule.databaseId}. Continuing with idempotent cleanup.`,
           );
         }
       }
@@ -192,7 +192,7 @@ export class SequelizeChargingProfileRepository
             ocppConnectionName,
           );
           this.logger.warn(
-              `ChargingSchedule id ${scheduleInput.id} already exists for station ${ocppConnectionName}. Retrying with remapped id ${remappedScheduleId}.`,
+            `ChargingSchedule id ${scheduleInput.id} already exists for station ${ocppConnectionName}. Retrying with remapped id ${remappedScheduleId}.`,
           );
           scheduleInput = {
             ...scheduleInput,

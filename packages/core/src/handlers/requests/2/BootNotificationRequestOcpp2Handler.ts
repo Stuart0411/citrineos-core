@@ -130,19 +130,16 @@ export class BootNotificationRequestOcpp2Handler extends AbstractHandler {
           );
         }
       }
-      await this._locationRepository.createOrUpdateChargingStation(
+      await this._locationRepository.createOrUpdateChargingStation(tenantId, {
         tenantId,
-        {
-          tenantId,
-          ocppConnectionName,
-          chargePointVendor: chargingStation.vendorName,
-          chargePointModel: chargingStation.model,
-          chargePointSerialNumber: chargingStation.serialNumber,
-          firmwareVersion: chargingStation.firmwareVersion,
-          iccid: chargingStation.modem?.iccid,
-          imsi: chargingStation.modem?.imsi,
-        } as ChargingStationDto,
-      );
+        ocppConnectionName,
+        chargePointVendor: chargingStation.vendorName,
+        chargePointModel: chargingStation.model,
+        chargePointSerialNumber: chargingStation.serialNumber,
+        firmwareVersion: chargingStation.firmwareVersion,
+        iccid: chargingStation.modem?.iccid,
+        imsi: chargingStation.modem?.imsi,
+      } as ChargingStationDto);
       await this._deviceModelService.updateDeviceModel(
         chargingStation,
         tenantId,
@@ -287,10 +284,8 @@ export class BootNotificationRequestOcpp2Handler extends AbstractHandler {
       }
 
       const doNotBootWithRejectedVariables = !(
-        (
-          bootConfigDbEntity.bootWithRejectedVariables ??
-          this._config.modules.configuration.ocpp2_0_1?.bootWithRejectedVariables
-        ) //TODO: When we add 2.1 config, we will need to adjust this logic to vary by message protocol
+        bootConfigDbEntity.bootWithRejectedVariables ??
+        this._config.modules.configuration.ocpp2_0_1?.bootWithRejectedVariables //TODO: When we add 2.1 config, we will need to adjust this logic to vary by message protocol
       );
 
       if (rejectedSetVariable && doNotBootWithRejectedVariables) {

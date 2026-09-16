@@ -301,7 +301,7 @@ export class SmartChargingOcpp2Api
             };
           }
 
-          let evse = await this._module.deviceModelRepository.findEvseByIdAndConnectorId(
+          const evse = await this._module.deviceModelRepository.findEvseByIdAndConnectorId(
             tenantId,
             request.evseId,
             null,

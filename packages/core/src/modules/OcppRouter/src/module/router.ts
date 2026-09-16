@@ -441,7 +441,10 @@ export class MessageRouterImpl extends AbstractMessageRouter implements IMessage
           identifier,
           message,
         );
-        throw new RetryMessageError('Call already in progress', RetryMessageErrorCode.CallInProgress);
+        throw new RetryMessageError(
+          'Call already in progress',
+          RetryMessageErrorCode.CallInProgress,
+        );
       }
     } else {
       recordOcppCallSent(String(action), protocol, CallSentOutcome.Rejected);

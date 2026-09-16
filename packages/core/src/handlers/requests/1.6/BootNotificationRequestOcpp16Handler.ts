@@ -123,22 +123,19 @@ export class BootNotificationRequestOcpp16Handler extends AbstractHandler {
           );
         }
       }
-      await this._locationRepository.createOrUpdateChargingStation(
+      await this._locationRepository.createOrUpdateChargingStation(tenantId, {
         tenantId,
-        {
-          tenantId,
-          ocppConnectionName,
-          chargePointVendor: request.chargePointVendor,
-          chargePointModel: request.chargePointModel,
-          chargePointSerialNumber: request.chargePointSerialNumber,
-          chargeBoxSerialNumber: request.chargeBoxSerialNumber,
-          firmwareVersion: request.firmwareVersion,
-          iccid: request.iccid,
-          imsi: request.imsi,
-          meterType: request.meterType,
-          meterSerialNumber: request.meterSerialNumber,
-        } as ChargingStationDto,
-      );
+        ocppConnectionName,
+        chargePointVendor: request.chargePointVendor,
+        chargePointModel: request.chargePointModel,
+        chargePointSerialNumber: request.chargePointSerialNumber,
+        chargeBoxSerialNumber: request.chargeBoxSerialNumber,
+        firmwareVersion: request.firmwareVersion,
+        iccid: request.iccid,
+        imsi: request.imsi,
+        meterType: request.meterType,
+        meterSerialNumber: request.meterSerialNumber,
+      } as ChargingStationDto);
     })().catch((error) => {
       this._logger.error(`Error updating station ${ocppConnectionName} with boot info:`, error);
     });
