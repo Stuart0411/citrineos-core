@@ -62,7 +62,8 @@ const ChargingStationStatusCountsSchema = ChargingStationSchema.extend({
 export type ChargingStationStatusCountsDto = z.infer<typeof ChargingStationStatusCountsSchema>;
 
 export class ChargingStationClass implements Partial<ChargingStationDto> {
-  id!: number;
+  id!: string;
+  pkId?: number;
   ocppConnectionName!: string;
   @IsBoolean()
   isOnline!: boolean;
