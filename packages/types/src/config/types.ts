@@ -2,10 +2,10 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-import { RegistrationStatusEnum } from '@interfaces/dto/types/enums.js';
-import { EventGroup } from '@interfaces/messages/internal-types.js';
-import { OCPP1_6 } from '@ocpp/model/index.js';
-import { OCPP_CallAction, OCPPVersion, type OCPPVersionType } from '@ocpp/rpc/message.js';
+import { RegistrationStatusEnum } from '../interfaces/dto/types/enums.js';
+import { EventGroup } from '../interfaces/messages/internal-types.js';
+import { OCPP1_6 } from '../ocpp/model/index.js';
+import { OCPP_CallAction, OCPPVersion, type OCPPVersionType } from '../ocpp/rpc/message.js';
 import { z } from 'zod';
 
 const CallActionSchema = z.nativeEnum(OCPP_CallAction);

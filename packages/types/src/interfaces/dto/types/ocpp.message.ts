@@ -2,8 +2,8 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-import { MessageOrigin, MessageState } from '@interfaces/messages/internal-types.js';
-import { MessageTypeId, OCPP_CallAction, OCPPVersion } from '@ocpp/rpc/message.js';
+import { MessageOrigin, MessageState } from '../../messages/internal-types.js';
+import { MessageTypeId, OCPP_CallAction, OCPPVersion } from '../../../ocpp/rpc/message.js';
 import { z } from 'zod';
 
 export const CallActionSchema = z.enum(OCPP_CallAction);

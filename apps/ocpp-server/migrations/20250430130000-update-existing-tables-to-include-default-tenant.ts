@@ -4,9 +4,9 @@
 'use strict';
 
 /** @type {import('sequelize-cli').Migration} */
-import { DEFAULT_TENANT_ID } from '@citrineos/base';
 import { DataTypes, QueryInterface } from 'sequelize';
 
+const DEFAULT_TENANT_ID = 1;
 const TABLES = [
   'AdditionalInfos',
   'IdTokens',

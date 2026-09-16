@@ -122,7 +122,15 @@ export class SequelizeRepository<T extends Model<any, any>> extends CrudReposito
     value: T,
     _namespace: string = this.namespace,
   ): Promise<T> {
-    return await value.save();
+    await value.save({ returning: false });
+
+    const model = value.constructor as ModelStatic<T>;
+    const primaryKeyAttribute = model.primaryKeyAttribute;
+    if (!primaryKeyAttribute || value.get(primaryKeyAttribute) == null) {
+      return value;
+    }
+
+    return await value.reload();
   }
 
   protected async _readOrCreateByQuery(

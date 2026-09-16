@@ -2,15 +2,21 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-import type { CallAction, IModule, OcppRequest, OcppResponse, SystemConfig } from '@citrineos/base';
+import type { IModule } from '@citrineos/base';
 import {
   AbstractMessageHandler,
   Message,
-  OCPP_CallAction,
   OcppError,
   RetryMessageError,
   RetryMessageErrorCode,
 } from '@citrineos/base';
+import {
+  type CallAction,
+  type OcppRequest,
+  type OcppResponse,
+  type SystemConfig,
+  OCPP_CallAction,
+} from '@citrineos/types';
 import * as amqplib from 'amqplib';
 import type { ILogObj } from 'tslog';
 import { Logger } from 'tslog';
@@ -462,7 +468,7 @@ export class RabbitMqReceiver extends AbstractMessageHandler {
           const isCallInProgressRetry =
             error.code === RetryMessageErrorCode.CallInProgress ||
             /call already in progress/i.test(error.message);
-          const stationId = parsedMessage?.context?.stationId ?? 'unknown';
+          const stationId = parsedMessage?.context?.ocppConnectionName ?? 'unknown';
           const action = parsedMessage?.action ?? 'unknown';
           // Workaround for repeated AFRRSignal redelivery loops:
           // if a retried message was already redelivered once, drop it to avoid queue flooding.

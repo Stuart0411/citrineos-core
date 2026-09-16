@@ -31,7 +31,13 @@ export {
   AbstractConnectionManager,
   AbstractMessageHandler,
   AbstractMessageSender,
+  EventGroup,
+  eventGroupFromString,
   Message,
+  MessageOrigin,
+  MessageState,
+  RetryMessageError,
+  RetryMessageErrorCode,
 } from './src/interfaces/messages/index.js';
 export type {
   IConnectionManager,

@@ -19,6 +19,7 @@ import {
   OCPP2_response_types,
 } from '@citrineos/base';
 import {
+  type ChargingStationDto,
   EventGroup,
   type HandlerProperties,
   OCPP_2_VER_LIST,
@@ -30,7 +31,7 @@ import {
   type SystemConfig,
 } from '@citrineos/types';
 import type { IDeviceModelRepository, ILocationRepository } from '@dal/interfaces/repositories.js';
-import { Boot, ChargingStation } from '@dal/layers/sequelize/index.js';
+import { Boot } from '@dal/layers/sequelize/index.js';
 import type { BootNotificationService } from '@modules/Configuration/src/module/BootNotificationService.js';
 import type { DeviceModelService } from '@modules/Configuration/src/module/DeviceModelService.js';
 import { v4 as uuidv4 } from 'uuid';
@@ -131,7 +132,7 @@ export class BootNotificationRequestOcpp2Handler extends AbstractHandler {
       }
       await this._locationRepository.createOrUpdateChargingStation(
         tenantId,
-        ChargingStation.build({
+        {
           tenantId,
           ocppConnectionName,
           chargePointVendor: chargingStation.vendorName,
@@ -140,7 +141,7 @@ export class BootNotificationRequestOcpp2Handler extends AbstractHandler {
           firmwareVersion: chargingStation.firmwareVersion,
           iccid: chargingStation.modem?.iccid,
           imsi: chargingStation.modem?.imsi,
-        }),
+        } as ChargingStationDto,
       );
       await this._deviceModelService.updateDeviceModel(
         chargingStation,

@@ -22,6 +22,8 @@ import {
   type RawCallError,
   type RawCallResult,
   type SystemConfig,
+} from '@citrineos/base';
+import {
   ErrorCode,
   EventGroup,
   MessageOrigin,
@@ -33,11 +35,11 @@ import {
   OCPPVersion,
   RetryMessageError,
   RetryMessageErrorCode,
-} from '@citrineos/base';
-import type { ILocationRepository } from '@citrineos/core';
+} from '@citrineos/types';
 import { afterEach, beforeEach, describe, expect, it, type Mocked, vi } from 'vitest';
-import { MessageRouterImpl } from '../../src/module/router.js';
-import { WebhookDispatcher } from '../../src/module/webhook.dispatcher.js';
+import { createTestContainer, getTestInstance } from '@test/testContainer.js';
+import { MessageRouterImpl } from '../../../../src/modules/OcppRouter/src/module/router.js';
+import { WebhookDispatcher } from '../../../../src/modules/OcppRouter/src/module/webhook.dispatcher.js';
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -1121,13 +1123,7 @@ describe('MessageRouterImpl', () => {
     it('should route AFRRSignal call errors through sender', async () => {
       cache.get.mockResolvedValue(null);
 
-      const message: CallError = [
-        MessageTypeId.CallError,
-        CORRELATION_ID,
-        ErrorCode.InternalError,
-        'Request Timeout',
-        {},
-      ];
+      const message = new CallError(CORRELATION_ID, ErrorCode.InternalError, 'Request Timeout', {});
 
       const result = await (router as any)._routeCallError(
         IDENTIFIER,
@@ -1144,13 +1140,7 @@ describe('MessageRouterImpl', () => {
     it('should keep non-special call errors unimplemented', async () => {
       cache.get.mockResolvedValue(null);
 
-      const message: CallError = [
-        MessageTypeId.CallError,
-        CORRELATION_ID,
-        ErrorCode.InternalError,
-        'Request Timeout',
-        {},
-      ];
+      const message = new CallError(CORRELATION_ID, ErrorCode.InternalError, 'Request Timeout', {});
 
       const result = await (router as any)._routeCallError(
         IDENTIFIER,

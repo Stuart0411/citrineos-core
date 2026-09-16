@@ -16,7 +16,7 @@ export class SequelizeDerControlRepository
   implements IDerControlRepository
 {
   constructor(config: BootstrapConfig, logger?: Logger<ILogObj>, sequelizeInstance?: Sequelize) {
-    super(config, DerControl.MODEL_NAME, logger, sequelizeInstance);
+    super({ config, namespace: DerControl.MODEL_NAME, logger, sequelizeInstance });
   }
 
   async upsertFromReport(

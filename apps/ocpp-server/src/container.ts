@@ -292,7 +292,10 @@ function registerRepositories(container: AwilixContainer): void {
     localAuthListRepository: asClass(SequelizeLocalAuthListRepository).singleton(),
     locationRepository: asClass(SequelizeLocationRepository).singleton(),
     messageInfoRepository: asClass(SequelizeMessageInfoRepository).singleton(),
-    ocppMessageRepository: asClass(SequelizeOCPPMessageRepository).singleton(),
+    ocppMessageRepository: asFunction(
+      ({ config, logger, sequelizeInstance }) =>
+        new SequelizeOCPPMessageRepository({ config, logger, sequelizeInstance }),
+    ).singleton(),
     reservationRepository: asClass(SequelizeReservationRepository).singleton(),
     securityEventRepository: asClass(SequelizeSecurityEventRepository).singleton(),
     serverNetworkProfileRepository: asClass(SequelizeServerNetworkProfileRepository).singleton(),

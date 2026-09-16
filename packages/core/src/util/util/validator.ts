@@ -95,7 +95,7 @@ export async function validateChargingProfileType(
         );
       }
       logger.info(
-        `Evse ${evseId} not found for station ${stationId}. Proceeding with single-schedule TxProfile without ChargingNeeds lookup (non-fatal fallback).`,
+        `Evse ${evseId} not found for station ${ocppConnectionName}. Proceeding with single-schedule TxProfile without ChargingNeeds lookup (non-fatal fallback).`,
       );
       return;
     }

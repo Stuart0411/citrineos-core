@@ -184,10 +184,10 @@ export abstract class AbstractModule implements IModule {
    * The actions this module's config asks it not to subscribe to
    */
   private _excludedActions(): { requests?: CallAction[]; responses?: CallAction[] } {
-    const modules: Partial<
-      Record<EventGroup, { excludedRequests?: CallAction[]; excludedResponses?: CallAction[] }>
-    > = this._config.modules;
-    const moduleConfig = modules[this._eventGroup];
+    const modules = this._config.modules as Record<string, unknown>;
+    const moduleConfig = modules[this._eventGroup] as
+      | { excludedRequests?: CallAction[]; excludedResponses?: CallAction[] }
+      | undefined;
     return {
       requests: moduleConfig?.excludedRequests,
       responses: moduleConfig?.excludedResponses,

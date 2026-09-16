@@ -15,7 +15,7 @@ export class SequelizeStationDerCapabilityRepository
   implements IStationDerCapabilityRepository
 {
   constructor(config: BootstrapConfig, logger?: Logger<ILogObj>, sequelizeInstance?: Sequelize) {
-    super(config, StationDerCapability.MODEL_NAME, logger, sequelizeInstance);
+    super({ config, namespace: StationDerCapability.MODEL_NAME, logger, sequelizeInstance });
   }
 
   async upsertCapabilitySnapshot(

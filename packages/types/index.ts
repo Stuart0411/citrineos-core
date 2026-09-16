@@ -27,6 +27,7 @@ export {
   MessageOrigin,
   MessageState,
   RetryMessageError,
+  RetryMessageErrorCode,
 } from './src/interfaces/messages/internal-types.js';
 export type { HandlerProperties } from './src/interfaces/messages/internal-types.js';
 
@@ -59,6 +60,7 @@ export * from './src/interfaces/dto/boot.dto.js';
 export * from './src/interfaces/dto/certificate.dto.js';
 export * from './src/interfaces/dto/change.configuration.dto.js';
 export * from './src/interfaces/dto/delete.certificate.attempt.dto.js';
+export * from './src/interfaces/dto/ems.site.intent.dto.js';
 export * from './src/interfaces/dto/install.certificate.attempt.dto.js';
 export * from './src/interfaces/dto/charging.needs.dto.js';
 export * from './src/interfaces/dto/charging.profile.dto.js';

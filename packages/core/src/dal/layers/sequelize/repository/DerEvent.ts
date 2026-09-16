@@ -15,7 +15,7 @@ export class SequelizeDerEventRepository
   implements IDerEventRepository
 {
   constructor(config: BootstrapConfig, logger?: Logger<ILogObj>, sequelizeInstance?: Sequelize) {
-    super(config, DerEvent.MODEL_NAME, logger, sequelizeInstance);
+    super({ config, namespace: DerEvent.MODEL_NAME, logger, sequelizeInstance });
   }
 
   createEvent(

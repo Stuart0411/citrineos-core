@@ -6,6 +6,7 @@ import { SecurityEvent } from '../model/SecurityEvent.js';
 import { SequelizeRepository, type SequelizeRepositoryDependencies } from './Base.js';
 import { Op } from 'sequelize';
 import type { ISecurityEventRepository } from '../../../interfaces/repositories.js';
+import { QueryTypes } from 'sequelize';
 
 export class SequelizeSecurityEventRepository
   extends SequelizeRepository<SecurityEvent>
@@ -20,14 +21,40 @@ export class SequelizeSecurityEventRepository
     value: OCPP2_0_1.SecurityEventNotificationRequest,
     ocppConnectionName: string,
   ): Promise<SecurityEvent> {
-    return await this.create(
-      tenantId,
-      SecurityEvent.build({
-        tenantId,
-        ocppConnectionName: ocppConnectionName,
-        ...value,
-      }),
+    const now = new Date();
+    await this.s.query(
+      `INSERT INTO "SecurityEvents"
+        ("ocppConnectionName", "type", "timestamp", "techInfo", "tenantId", "createdAt", "updatedAt")
+       VALUES
+        (:ocppConnectionName, :type, :timestamp, :techInfo, :tenantId, :createdAt, :updatedAt)`,
+      {
+        replacements: {
+          ocppConnectionName,
+          type: value.type,
+          timestamp: new Date(value.timestamp),
+          techInfo: value.techInfo ?? null,
+          tenantId,
+          createdAt: now,
+          updatedAt: now,
+        },
+        type: QueryTypes.INSERT,
+      },
     );
+    const row = await this.s.models[SecurityEvent.MODEL_NAME].findOne({
+      where: {
+        tenantId,
+        ocppConnectionName,
+        type: value.type,
+        timestamp: new Date(value.timestamp),
+      },
+      order: [['createdAt', 'DESC']],
+    });
+
+    if (!row) {
+      throw new Error('Failed to reload inserted SecurityEvent');
+    }
+
+    return row as SecurityEvent;
   }
 
   async readByStationIdAndTimestamps(

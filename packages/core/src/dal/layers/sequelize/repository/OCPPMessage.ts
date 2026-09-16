@@ -6,6 +6,7 @@ import { type OCPPMessageDto } from '@citrineos/types';
 import type { IOCPPMessageRepository } from '../../../interfaces/repositories.js';
 import { OCPPMessage } from '../model/OCPPMessage.js';
 import { SequelizeRepository, type SequelizeRepositoryDependencies } from './Base.js';
+import { QueryTypes } from 'sequelize';
 
 export class SequelizeOCPPMessageRepository
   extends SequelizeRepository<OCPPMessage>
@@ -24,7 +25,47 @@ export class SequelizeOCPPMessageRepository
    * @returns
    */
   public async createOCPPMessage(tenantId: number, message: OCPPMessageDto): Promise<OCPPMessage> {
-    return this.create(tenantId, OCPPMessage.build({ ...message }));
+    const now = new Date();
+    await this.s.query(
+      `INSERT INTO "OCPPMessages"
+        ("ocppConnectionName", "correlationId", "origin", "type", "state", "protocol", "action", "message", "payload", "raw", "timestamp", "tenantId", "createdAt", "updatedAt")
+       VALUES
+        (:ocppConnectionName, :correlationId, :origin, :type, :state, :protocol, :action, :message::jsonb, :payload::jsonb, :raw, :timestamp, :tenantId, :createdAt, :updatedAt)`,
+      {
+        replacements: {
+          ocppConnectionName: message.ocppConnectionName,
+          correlationId: message.correlationId,
+          origin: message.origin,
+          type: message.type ?? null,
+          state: message.state ?? null,
+          protocol: message.protocol,
+          action: message.action ?? null,
+          message: JSON.stringify(message.message ?? null),
+          payload: JSON.stringify(message.payload ?? null),
+          raw: message.raw,
+          timestamp: message.timestamp,
+          tenantId,
+          createdAt: now,
+          updatedAt: now,
+        },
+        type: QueryTypes.INSERT,
+      },
+    );
+
+    const createdMessage = await this.s.models[OCPPMessage.MODEL_NAME].findOne({
+      where: {
+        tenantId,
+        ocppConnectionName: message.ocppConnectionName,
+        correlationId: message.correlationId,
+      },
+      order: [['createdAt', 'DESC']],
+    });
+
+    if (!createdMessage) {
+      throw new Error('Failed to reload inserted OCPP message');
+    }
+
+    return createdMessage as OCPPMessage;
   }
 
   public async getRequestByCorrelationId(

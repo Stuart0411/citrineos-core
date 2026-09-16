@@ -46,19 +46,20 @@ export class RabbitMQChannelManager {
 
     if (!channel) {
       const connection = await this.connectionManager.connect();
-      channel = await connection.createChannel();
+      const createdChannel = await connection.createChannel();
+      channel = createdChannel;
 
-      channel.on('error', (err) => {
+      createdChannel.on('error', (err) => {
         this._logger.error(`Channel ${channelId} error:`, err);
         this.channelMap.set(channelId, null);
       });
 
-      channel.on('close', () => {
+      createdChannel.on('close', () => {
         this._logger.info(`Channel ${channelId} closed`);
         this.channelMap.set(channelId, null);
       });
 
-      this.channelMap.set(channelId, channel);
+      this.channelMap.set(channelId, createdChannel);
     }
 
     return channel;

@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { z } from 'zod';
-import { OCPP2_0_1 } from '@ocpp/model/index.js';
+import { OCPP2_0_1 } from '../../../ocpp/model/index.js';
 
 export const AttributeEnumSchema = z.enum(OCPP2_0_1.AttributeEnumType);
 export const DataEnumSchema = z.enum(OCPP2_0_1.DataEnumType);

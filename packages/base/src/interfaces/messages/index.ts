@@ -8,6 +8,7 @@ export {
   MessageOrigin,
   MessageState,
   RetryMessageError,
+  RetryMessageErrorCode,
 } from '@citrineos/types';
 export type { HandlerProperties } from '@citrineos/types';
 

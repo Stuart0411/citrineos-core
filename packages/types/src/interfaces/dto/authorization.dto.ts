@@ -11,7 +11,7 @@ import {
   AuthorizationWhitelistEnumSchema,
   IdTokenEnumSchema,
 } from './types/enums.js';
-import { TariffSchema } from '@interfaces/dto/tariff.dto.js';
+import { TariffSchema } from './tariff.dto.js';
 
 const authorizationFields = {
   id: z.number().int().optional(),

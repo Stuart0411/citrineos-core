@@ -15,7 +15,8 @@ import { DrizzleRepository } from './Base.js';
 // Maps a Drizzle entity (DB row) to the external ChargingStationDto contract.
 export function toChargingStationDto(entity: ChargingStationEntity): ChargingStationDto {
   const dto: Explicit<ChargingStationDto> = {
-    id: entity.id,
+    pkId: entity.id,
+    id: entity.ocppConnectionName ?? String(entity.id),
     ocppConnectionName: entity.ocppConnectionName ?? '',
     isOnline: entity.isOnline ?? false,
     // Enum stored as string in the DB — cast back to the DTO's enum union.

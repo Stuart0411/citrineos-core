@@ -15,7 +15,7 @@ export class SequelizeEmsDecisionRepository
   implements IEmsDecisionRepository
 {
   constructor(config: BootstrapConfig, logger?: Logger<ILogObj>, sequelizeInstance?: Sequelize) {
-    super(config, EmsDecision.MODEL_NAME, logger, sequelizeInstance);
+    super({ config, namespace: EmsDecision.MODEL_NAME, logger, sequelizeInstance });
   }
 
   createDecision(

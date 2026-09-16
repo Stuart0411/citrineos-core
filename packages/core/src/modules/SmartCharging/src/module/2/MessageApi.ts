@@ -2,8 +2,6 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-import type { CallAction, IMessageConfirmation, OCPP2_request_types } from '@citrineos/base';
-import { OCPP2_1 } from '@citrineos/base';
 import {
   type IMessageConfirmation,
   type OCPP2_request_types,
@@ -22,6 +20,7 @@ import {
   ChargingProfileKindEnum,
   ChargingProfilePurposeEnum,
   DataEnum,
+  OCPP2_1,
   OCPP_CallAction,
   OCPPVersion,
 } from '@citrineos/types';
@@ -309,7 +308,7 @@ export class SmartChargingOcpp2Api
           );
           if (!evse && transaction.evseId && transaction.evseId > 0) {
             this._logger.info(
-              `Evse ${request.evseId} not found in device model for station ${id}. Using transaction.evseId ${transaction.evseId} for internal ChargingNeeds lookup only; OCPP request keeps evseId ${request.evseId}.`,
+              `Evse ${request.evseId} not found in device model for station ${ocppConnectionName}. Using transaction.evseId ${transaction.evseId} for internal ChargingNeeds lookup only; OCPP request keeps evseId ${request.evseId}.`,
             );
           }
           if (!evse) {
@@ -320,7 +319,7 @@ export class SmartChargingOcpp2Api
               };
             }
             this._logger.info(
-              `Evse ${request.evseId} not found for station ${id}. Proceeding with single-schedule TxProfile without ChargingNeeds lookup (non-fatal fallback).`,
+              `Evse ${request.evseId} not found for station ${ocppConnectionName}. Proceeding with single-schedule TxProfile without ChargingNeeds lookup (non-fatal fallback).`,
             );
           } else {
             this._logger.info(`Found evse: ${JSON.stringify(evse)}`);
@@ -655,10 +654,10 @@ export class SmartChargingOcpp2Api
         }
 
         // Validate station matches
-        if (profile.stationId !== id) {
+        if (profile.ocppConnectionName !== id) {
           return {
             success: false,
-            payload: `Profile ${request.chargingProfileId} belongs to station ${profile.stationId}, not ${id}`,
+            payload: `Profile ${request.chargingProfileId} belongs to station ${profile.ocppConnectionName}, not ${id}`,
           };
         }
 
@@ -682,8 +681,12 @@ export class SmartChargingOcpp2Api
    * @param {CallAction} input - The input {@link CallAction}.
    * @return {string} - The generated URL path.
    */
-  protected _toMessagePath(input: CallAction, version?: OCPPVersion | null): string {
-    const endpointPrefix = this._module.config.modules.smartcharging?.endpointPrefix;
+  protected _toMessagePath(
+    input: CallAction,
+    version?: OCPPVersion | null,
+    prefix?: string,
+  ): string {
+    const endpointPrefix = prefix ?? this._module.config.modules.smartcharging?.endpointPrefix;
     return super._toMessagePath(input, version, endpointPrefix);
   }
 

@@ -116,7 +116,7 @@ export class SequelizeChargingProfileRepository
       },
       defaults: {
         ...chargingProfileModelFields,
-        stationId: stationId,
+        ocppConnectionName,
         evseId: evseId,
         transactionDatabaseId: transactionDBId,
         chargingLimitSource: chargingLimitSource ?? ChargingLimitSourceEnum.CSO,
@@ -128,7 +128,7 @@ export class SequelizeChargingProfileRepository
         tenantId,
         {
           ...chargingProfileModelFields,
-          stationId: stationId,
+          ocppConnectionName,
           transactionDatabaseId: transactionDBId,
           evseId: evseId,
           chargingLimitSource: chargingLimitSource ?? ChargingLimitSourceEnum.CSO,
@@ -149,7 +149,7 @@ export class SequelizeChargingProfileRepository
           throw error;
         }
         this.logger.warn(
-          `ChargingSchedule delete count mismatch during profile refresh for station ${stationId} profile ${chargingProfile.id}. Continuing with idempotent cleanup.`,
+            `ChargingSchedule delete count mismatch during profile refresh for station ${ocppConnectionName} profile ${chargingProfile.id}. Continuing with idempotent cleanup.`,
         );
       }
 
@@ -165,7 +165,7 @@ export class SequelizeChargingProfileRepository
             throw error;
           }
           this.logger.warn(
-            `SalesTariff delete count mismatch during profile refresh for station ${stationId} schedule ${deletedSchedule.databaseId}. Continuing with idempotent cleanup.`,
+              `SalesTariff delete count mismatch during profile refresh for station ${ocppConnectionName} schedule ${deletedSchedule.databaseId}. Continuing with idempotent cleanup.`,
           );
         }
       }
@@ -180,16 +180,19 @@ export class SequelizeChargingProfileRepository
           tenantId,
           ChargingSchedule.build({
             tenantId,
-            stationId,
+            ocppConnectionName,
             chargingProfileDatabaseId: savedChargingProfile.databaseId,
             ...scheduleInput,
           }),
         );
       } catch (error) {
         if (error instanceof UniqueConstraintError) {
-          const remappedScheduleId = await this.getNextChargingScheduleId(tenantId, stationId);
+          const remappedScheduleId = await this.getNextChargingScheduleId(
+            tenantId,
+            ocppConnectionName,
+          );
           this.logger.warn(
-            `ChargingSchedule id ${scheduleInput.id} already exists for station ${stationId}. Retrying with remapped id ${remappedScheduleId}.`,
+              `ChargingSchedule id ${scheduleInput.id} already exists for station ${ocppConnectionName}. Retrying with remapped id ${remappedScheduleId}.`,
           );
           scheduleInput = {
             ...scheduleInput,
@@ -199,7 +202,7 @@ export class SequelizeChargingProfileRepository
             tenantId,
             ChargingSchedule.build({
               tenantId,
-              stationId,
+              ocppConnectionName,
               chargingProfileDatabaseId: savedChargingProfile.databaseId,
               ...scheduleInput,
             }),

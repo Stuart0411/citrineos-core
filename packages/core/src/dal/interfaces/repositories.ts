@@ -12,9 +12,11 @@ import type {
   AuthorizationDto,
   CallAction,
   ChargingLimitSourceEnumType,
+  ChargingStationDto,
   ChargingProfilePurposeEnumType,
   ChargingStateEnumType,
   ChargingStationSequenceTypeEnumType,
+  EmsSiteIntentCreate,
   MeterValueDto,
   OCPP1_6,
   OCPPMessageDto,
@@ -30,8 +32,9 @@ import type {
   ChargingProfileInput,
   CompositeScheduleInput,
 } from '../layers/sequelize/mapper/2.0.1/ChargingProfileMapper.js';
-import type { EmsSiteIntentCreate } from '@citrineos/base';
 import type { Authorization } from '../layers/sequelize/model/Authorization/Authorization.js';
+import type { LocalListVersion } from '../layers/sequelize/model/Authorization/LocalListVersion.js';
+import type { SendLocalList } from '../layers/sequelize/model/Authorization/SendLocalList.js';
 import type { Boot } from '../layers/sequelize/model/Boot.js';
 import type { Certificate } from '../layers/sequelize/model/Certificate/Certificate.js';
 import type {
@@ -284,7 +287,7 @@ export interface ILocationRepository extends CrudRepository<Location> {
   ): Promise<void>;
   createOrUpdateChargingStation(
     tenantId: number,
-    chargingStation: ChargingStation,
+    chargingStation: ChargingStationDto,
   ): Promise<ChargingStation>;
   createOrUpdateConnector(tenantId: number, connector: Connector): Promise<Connector | undefined>;
   /**

@@ -15,9 +15,9 @@
  * It runs twice — once with the default Sequelize repository and once with
  * CITRINEOS_USE_DRIZZLE=true — confirming both write the same record.
  *
- * Prerequisites: run `pnpm run test:e2e` (which builds first) rather than
- * `pnpm test`, since the server child process needs ocpp-server/dist/index.js to be
- * current and sequelize-cli needs dist/migrations/*.
+ * This test rebuilds the runtime packages it executes (`@citrineos/base`,
+ * `@citrineos/core`, and `@citrineos/ocpp-server`) before launching the
+ * compiled server so it does not silently exercise stale dist artifacts.
  *
  * Why no manual Tenant seed?
  *   The migration 20250430110000-create-default-tenant inserts Tenant id=1
@@ -26,11 +26,12 @@
 
 import { type ChildProcess, execSync, spawn } from 'child_process';
 import { mkdtempSync, writeFileSync } from 'fs';
+import { createServer } from 'net';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { Client } from 'pg';
 import { GenericContainer, type StartedTestContainer, Wait } from 'testcontainers';
-import { fileURLToPath } from 'url';
+import { fileURLToPath, pathToFileURL } from 'url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import WebSocket from 'ws';
 import { createLocalConfig } from '../../../../../apps/ocpp-server/src/config/envs/local.js';
@@ -42,11 +43,7 @@ const SERVER_ROOT = fileURLToPath(new URL('../../../../../apps/ocpp-server/', im
 const SERVER_DIST = fileURLToPath(
   new URL('../../../../../apps/ocpp-server/dist/index.js', import.meta.url),
 );
-
-// ─── Ports used by the server under test ─────────────────────────────────────
-
-const HTTP_PORT = 8080; // Fastify API + /health endpoint
-const WS_PORT = 8081; // OCPP WebSocket (allowUnknownChargingStations: true)
+const WORKSPACE_ROOT = fileURLToPath(new URL('../../../../../', import.meta.url));
 
 // ─── Shared state across all scenarios ────────────────────────────────────────
 
@@ -54,7 +51,10 @@ let pgContainer: StartedTestContainer;
 let rabbitContainer: StartedTestContainer;
 let pgPort: number;
 let rabbitPort: number;
+let httpPort: number;
+let wsPort: number;
 let tempDir: string;
+let serverLoaderPath: string;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -79,8 +79,25 @@ function buildTestEnv(extraEnv: Record<string, string> = {}): NodeJS.ProcessEnv 
   };
 }
 
+async function findFreePort(): Promise<number> {
+  return await new Promise<number>((resolve, reject) => {
+    const server = createServer();
+    server.unref();
+    server.on('error', reject);
+    server.listen(0, '127.0.0.1', () => {
+      const address = server.address();
+      if (typeof address === 'object' && address) {
+        const port = address.port;
+        server.close(() => resolve(port));
+        return;
+      }
+      reject(new Error('Failed to allocate a free HTTP port'));
+    });
+  });
+}
+
 function spawnServer(extraEnv: Record<string, string> = {}): ChildProcess {
-  return spawn('node', [SERVER_DIST], {
+  return spawn('node', ['--loader', pathToFileURL(serverLoaderPath).href, SERVER_DIST], {
     env: buildTestEnv(extraEnv),
     stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -90,7 +107,7 @@ async function waitForHealth(timeoutMs = 45_000): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     try {
-      const res = await fetch(`http://localhost:${HTTP_PORT}/health/ready`);
+      const res = await fetch(`http://localhost:${httpPort}/health/ready`);
       if (res.ok) return;
     } catch {
       // server not up yet
@@ -118,7 +135,7 @@ async function killServer(proc: ChildProcess): Promise<void> {
 
 function connectOcpp(stationId: string): Promise<WebSocket> {
   return new Promise((resolve, reject) => {
-    const ws = new WebSocket(`ws://localhost:${WS_PORT}/${stationId}`, ['ocpp2.0.1']);
+    const ws = new WebSocket(`ws://localhost:${wsPort}/${stationId}`, ['ocpp2.0.1']);
     ws.once('open', () => resolve(ws));
     ws.once('error', reject);
   });
@@ -167,28 +184,107 @@ beforeAll(async () => {
 
   pgPort = pgContainer.getMappedPort(5432);
   rabbitPort = rabbitContainer.getMappedPort(5672);
+  httpPort = await findFreePort();
+  wsPort = await findFreePort();
 
   // Build the system config by reusing the real local.ts config function, then
   // patch only the AMQP URL to point at the testcontainer RabbitMQ port.
   // We also strip the second WS server (port 8082, securityProfile 1) to avoid
   // a bind conflict when the first server is still releasing that port.
   const config = createLocalConfig();
+  config.centralSystem.port = httpPort;
   config.util.messageBroker.amqp!.url = `amqp://guest:guest@localhost:${rabbitPort}`;
   config.util.networkConnection.websocketServers =
     config.util.networkConnection.websocketServers.filter((s) => s.securityProfile === 0);
+  config.util.networkConnection.websocketServers[0].port = wsPort;
 
   tempDir = mkdtempSync(join(tmpdir(), 'citrineos-e2e-'));
   writeFileSync(join(tempDir, 'config.json'), JSON.stringify(config, null, 2));
+  serverLoaderPath = join(tempDir, 'alias-loader.mjs');
+  writeFileSync(
+    serverLoaderPath,
+    [
+      "import path from 'node:path';",
+      "import { pathToFileURL } from 'node:url';",
+      `const workspaceRoot = ${JSON.stringify(WORKSPACE_ROOT)};`,
+      'const mappings = [',
+      "  ['@interfaces/', path.join(workspaceRoot, 'packages/base/dist/src/interfaces/')],",
+      "  ['@config/', path.join(workspaceRoot, 'packages/base/dist/src/config/')],",
+      "  ['@ocpp/', path.join(workspaceRoot, 'packages/base/dist/src/ocpp/')],",
+      "  ['@base-util/', path.join(workspaceRoot, 'packages/base/dist/src/util/')],",
+      "  ['@dal/', path.join(workspaceRoot, 'packages/core/dist/src/dal/')],",
+      "  ['@handlers/', path.join(workspaceRoot, 'packages/core/dist/src/handlers/')],",
+      "  ['@modules/', path.join(workspaceRoot, 'packages/core/dist/src/modules/')],",
+      "  ['@util/', path.join(workspaceRoot, 'packages/core/dist/src/util/')],",
+      "  ['@/', path.join(workspaceRoot, 'packages/core/dist/src/')],",
+      '];',
+      'export async function resolve(specifier, context, defaultResolve) {',
+      '  for (const [prefix, targetDir] of mappings) {',
+      '    if (specifier.startsWith(prefix)) {',
+      '      const relativePath = specifier.slice(prefix.length);',
+      '      return { url: pathToFileURL(path.join(targetDir, relativePath)).href, shortCircuit: true };',
+      '    }',
+      '  }',
+      '  return defaultResolve(specifier, context, defaultResolve);',
+      '}',
+      '',
+    ].join('\n'),
+  );
+
+  const sequelizeConfigPath = join(tempDir, 'sequelize.bridge.config.cjs');
+  writeFileSync(
+    sequelizeConfigPath,
+    [
+      "require('ts-node/register');",
+      'module.exports = {',
+      "  username: process.env.BOOTSTRAP_CITRINEOS_DATABASE_USERNAME,",
+      "  password: process.env.BOOTSTRAP_CITRINEOS_DATABASE_PASSWORD,",
+      "  database: process.env.BOOTSTRAP_CITRINEOS_DATABASE_NAME,",
+      "  host: process.env.BOOTSTRAP_CITRINEOS_DATABASE_HOST,",
+      "  port: Number(process.env.BOOTSTRAP_CITRINEOS_DATABASE_PORT),",
+      "  dialect: 'postgres',",
+      '  logging: true,',
+      '};',
+      '',
+    ].join('\n'),
+  );
+
+  execSync('corepack pnpm --config.engine-strict=false --filter @citrineos/base run build', {
+    cwd: WORKSPACE_ROOT,
+    env: buildTestEnv(),
+    stdio: 'inherit',
+  });
+
+  execSync('corepack pnpm --config.engine-strict=false --filter @citrineos/core run build', {
+    cwd: WORKSPACE_ROOT,
+    env: buildTestEnv(),
+    stdio: 'inherit',
+  });
+
+  execSync('corepack pnpm --config.engine-strict=false --filter @citrineos/ocpp-server run build', {
+    cwd: WORKSPACE_ROOT,
+    env: buildTestEnv(),
+    stdio: 'inherit',
+  });
+
+  execSync('corepack pnpm exec tsc -p tsconfig.migrations.json', {
+    cwd: SERVER_ROOT,
+    env: buildTestEnv(),
+    stdio: 'inherit',
+  });
 
   // Run the real sequelize-cli migrations against the testcontainer DB.
   // sequelize.bridge.config.ts reads BOOTSTRAP_CITRINEOS_DATABASE_* env vars,
   // so the same vars we use to start the server point migrations at test PG.
   // This also runs 20250430110000-create-default-tenant which seeds Tenant id=1.
-  execSync('pnpm run db:migrate', {
+  execSync(
+    `corepack pnpm exec sequelize-cli db:migrate --debug --config "${sequelizeConfigPath}" --migrations-path dist/migrations`,
+    {
     cwd: SERVER_ROOT,
     env: buildTestEnv(),
     stdio: 'inherit',
-  });
+    },
+  );
 
   // Seed a ChargingStation row for each test scenario stationId.
   // The trigger populate_station_pk_id() on OCPPMessages requires a matching
@@ -212,7 +308,7 @@ beforeAll(async () => {
     );
   }
   await seedClient.end();
-}, 120_000);
+}, 240_000);
 
 afterAll(async () => {
   await Promise.allSettled([pgContainer?.stop(), rabbitContainer?.stop()]);
@@ -242,7 +338,7 @@ describe.each([
       process.stderr.write(`[server:${label}] ${chunk}`);
     });
 
-    await waitForHealth(45_000);
+    await waitForHealth(90_000);
 
     // Open a direct pg connection for the DB assertion step.
     db = new Client({
@@ -253,7 +349,7 @@ describe.each([
       password: 'postgres',
     });
     await db.connect();
-  }, 60_000);
+  }, 120_000);
 
   afterAll(async () => {
     await db?.end();
