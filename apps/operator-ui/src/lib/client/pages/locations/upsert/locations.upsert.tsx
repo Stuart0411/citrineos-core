@@ -140,7 +140,7 @@ export const LocationsUpsert = ({ params, allowImageUpload = false }: LocationsU
 
   const { open } = useNotification();
 
-  const originalStationIdsRef = useRef<number[]>([]);
+  const originalStationIdsRef = useRef<string[]>([]);
   const [geoPoint, setGeoPoint] = useState<GeoPoint | undefined>(
     new GeoPoint(defaultLatitude, defaultLongitude),
   );
@@ -176,7 +176,7 @@ export const LocationsUpsert = ({ params, allowImageUpload = false }: LocationsU
   useEffect(() => {
     if (!originalStationIdsRef.current && currentChargingPool !== undefined) {
       originalStationIdsRef.current = currentChargingPool
-        ? currentChargingPool.map((charger) => charger.pkId!)
+        ? currentChargingPool.map((charger) => charger.id!)
         : [];
     }
   }, [currentChargingPool]);
@@ -191,7 +191,7 @@ export const LocationsUpsert = ({ params, allowImageUpload = false }: LocationsU
 
   const processChargingPoolChanges = (locationId: string) => {
     const prevStationIds = new Set(originalStationIdsRef.current);
-    const currentStationIds = new Set((currentChargingPool || []).map((charger) => charger.pkId!));
+    const currentStationIds = new Set((currentChargingPool || []).map((charger) => charger.id!));
 
     const addedIds = [...currentStationIds].filter((id) => !prevStationIds.has(id));
     const removedIds = [...prevStationIds].filter((id) => !currentStationIds.has(id));
