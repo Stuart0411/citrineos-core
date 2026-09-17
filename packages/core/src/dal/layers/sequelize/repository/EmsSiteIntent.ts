@@ -2,21 +2,22 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-import type { BootstrapConfig, EmsSiteIntentCreate } from '@citrineos/base';
+import type { BootstrapConfig } from '@citrineos/base';
+import type { EmsSiteIntentCreate } from '@citrineos/types';
 import { Op } from 'sequelize';
 import { Sequelize } from 'sequelize-typescript';
 import type { ILogObj } from 'tslog';
 import { Logger } from 'tslog';
 import type { IEmsSiteIntentRepository } from '../../../interfaces/repositories.js';
 import { EmsSiteIntent } from '../model/EmsSiteIntent.js';
-import { SequelizeRepository } from './Base.js';
+import { SequelizeRepository, type SequelizeRepositoryDependencies } from './Base.js';
 
 export class SequelizeEmsSiteIntentRepository
   extends SequelizeRepository<EmsSiteIntent>
   implements IEmsSiteIntentRepository
 {
-  constructor(config: BootstrapConfig, logger?: Logger<ILogObj>, sequelizeInstance?: Sequelize) {
-    super(config, EmsSiteIntent.MODEL_NAME, logger, sequelizeInstance);
+  constructor({ config, logger, sequelizeInstance }: SequelizeRepositoryDependencies) {
+    super({ config, namespace: EmsSiteIntent.MODEL_NAME, logger, sequelizeInstance });
   }
 
   createSiteIntent(tenantId: number, value: EmsSiteIntentCreate): Promise<EmsSiteIntent> {

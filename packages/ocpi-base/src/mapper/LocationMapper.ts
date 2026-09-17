@@ -225,7 +225,7 @@ export class EvseMapper {
     }
 
     return {
-      uid: UID_FORMAT(station.ocppConnectionName, evse.id!),
+      uid: UID_FORMAT(station.ocppConnectionName ?? station.id, evse.id!),
       evse_id: evse.evseId,
       status: connectors
         ? EvseMapper.mapEvseStatusFromConnectors(

@@ -16,7 +16,7 @@ import {
   OCPP2_0_1,
   OCPP_CallAction,
   SetMonitoringStatusEnum,
-} from '@citrineos/base';
+} from '@citrineos/types';
 import { UniqueConstraintError } from 'sequelize';
 import { Sequelize } from 'sequelize-typescript';
 import type { ILogObj } from 'tslog';
@@ -273,7 +273,7 @@ export class SequelizeVariableMonitoringRepository
   ): Promise<EventData> {
     const payload = {
       tenantId,
-      stationId,
+      ocppConnectionName,
       variableId,
       componentId,
       ...event,
@@ -283,7 +283,7 @@ export class SequelizeVariableMonitoringRepository
       const existing = await this.s.models[EventData.MODEL_NAME].findOne({
         where: {
           tenantId,
-          stationId,
+          ocppConnectionName,
           eventId: event.eventId,
         },
         transaction,
@@ -304,7 +304,7 @@ export class SequelizeVariableMonitoringRepository
         const raced = await this.s.models[EventData.MODEL_NAME].findOne({
           where: {
             tenantId,
-            stationId,
+            ocppConnectionName,
             eventId: event.eventId,
           },
           transaction,

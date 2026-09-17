@@ -84,7 +84,9 @@ export class LocationsService {
 
     // Map GraphQL DTOs to OCPI DTOs
     const locations =
-      response.Locations.map((value) => LocationMapper.fromGraphql(value as LocationDto)) ?? [];
+      response.Locations.map((value) =>
+        LocationMapper.fromGraphql(value as unknown as LocationDto),
+      ) ?? [];
     const locationsTotal = response.Locations_aggregate?.aggregate?.count ?? 0;
 
     return buildOcpiPaginatedResponse(
@@ -122,7 +124,7 @@ export class LocationsService {
           `Multiple locations found for id ${locationId}. Returning the first one. All entries: ${JSON.stringify(response.Locations)}`,
         );
       }
-      const location = LocationMapper.fromGraphql(response.Locations[0] as LocationDto);
+      const location = LocationMapper.fromGraphql(response.Locations[0] as unknown as LocationDto);
       return buildOcpiResponse(
         OcpiResponseStatusCode.GenericSuccessCode,
         location,
@@ -152,7 +154,10 @@ export class LocationsService {
       if (!station || !evseRecord) {
         throw new NotFoundException(`Unknown location: ${locationId}`);
       }
-      const evse = EvseMapper.fromGraphql(station as ChargingStationDto, evseRecord as EvseDto);
+      const evse = EvseMapper.fromGraphql(
+        station as unknown as ChargingStationDto,
+        evseRecord as unknown as EvseDto,
+      );
       return buildOcpiResponse(OcpiResponseStatusCode.GenericSuccessCode, evse);
     } catch (e) {
       const statusCode =
@@ -194,7 +199,7 @@ export class LocationsService {
           `Multiple connectors found for location id ${locationId}, station id ${stationId}, EVSE id ${evseId}, and connector id ${connectorId}. Returning the first one. All entries: ${JSON.stringify(connectors)}`,
         );
       }
-      const connector = ConnectorMapper.fromGraphql(connectors[0] as ConnectorDto);
+      const connector = ConnectorMapper.fromGraphql(connectors[0] as unknown as ConnectorDto);
       return buildOcpiResponse(OcpiResponseStatusCode.GenericSuccessCode, connector);
     } catch (e) {
       const statusCode =

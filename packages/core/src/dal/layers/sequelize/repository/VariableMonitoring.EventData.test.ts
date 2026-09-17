@@ -6,7 +6,8 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { GenericContainer, type StartedTestContainer, Wait } from 'testcontainers';
 import type { Sequelize } from 'sequelize-typescript';
 import type { BootstrapConfig } from '@citrineos/base';
-import { DEFAULT_TENANT_ID, OCPP2_1 } from '@citrineos/base';
+import { DEFAULT_TENANT_ID } from '@citrineos/base';
+import { OCPP2_1 } from '@citrineos/types';
 import {
   ChargingStation,
   Component,
@@ -64,16 +65,19 @@ beforeEach(async () => {
 });
 
 function makeRepository(): SequelizeVariableMonitoringRepository {
-  return new SequelizeVariableMonitoringRepository(
-    {} as BootstrapConfig,
-    undefined,
+  return new SequelizeVariableMonitoringRepository({
+    config: {} as BootstrapConfig,
     sequelizeInstance,
-  );
+  });
 }
 
 async function seedBase(): Promise<{ component: Component; variable: Variable }> {
   await Tenant.create({ id: TENANT_ID as any });
-  await ChargingStation.create({ id: STATION_ID, isOnline: false, tenantId: TENANT_ID });
+  await ChargingStation.create({
+    ocppConnectionName: STATION_ID,
+    isOnline: false,
+    tenantId: TENANT_ID,
+  });
 
   const component = await Component.create({
     name: 'Connector',
@@ -131,11 +135,12 @@ describe('SequelizeVariableMonitoringRepository EventData idempotency', () => {
     const rows = (await sequelizeInstance.models.EventData.findAll({
       where: {
         tenantId: TENANT_ID,
-        stationId: STATION_ID,
+        ocppConnectionName: STATION_ID,
         eventId: firstEvent.eventId,
       },
     })) as unknown as Array<{
-      id: number;
+      eventId: number;
+      ocppConnectionName: string;
       actualValue: string;
       techInfo?: string;
       cleared: boolean;
@@ -143,7 +148,8 @@ describe('SequelizeVariableMonitoringRepository EventData idempotency', () => {
     }>;
 
     expect(rows).toHaveLength(1);
-    expect(updated.id).toBe(created.id);
+    expect(updated.eventId).toBe(created.eventId);
+    expect(updated.ocppConnectionName).toBe(created.ocppConnectionName);
     expect(rows[0].actualValue).toBe('24');
     expect(rows[0].techInfo).toBe('updated-value');
     expect(rows[0].cleared).toBe(true);

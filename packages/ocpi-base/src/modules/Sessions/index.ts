@@ -99,7 +99,8 @@ export class SessionsModule extends AbstractDtoModule implements OcpiModule {
         return;
       }
 
-      const fullTransactionDto = fullTransactionDtoResponse.Transactions[0] as TransactionDto;
+      const fullTransactionDto = fullTransactionDtoResponse
+        .Transactions[0] as unknown as TransactionDto;
       await this.cdrBroadcaster.broadcastPostCdr(fullTransactionDto);
     }
   }

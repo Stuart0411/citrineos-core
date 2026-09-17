@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { z } from 'zod/v4';
-import { TenantSchema } from '@interfaces/dto/tenant.dto.js';
+import { TenantSchema } from '../tenant.dto.js';
 
 export const BaseSchema = z.object({
   tenantId: z.number().int().optional(),

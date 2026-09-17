@@ -72,8 +72,12 @@ export class ReportingOcpp16Api
    * @param {CallAction} input - The input {@link CallAction}.
    * @return {string} - The generated URL path.
    */
-  protected _toMessagePath(input: CallAction, version?: OCPPVersion | null): string {
-    const endpointPrefix = this._module.config.modules.reporting.endpointPrefix;
+  protected _toMessagePath(
+    input: CallAction,
+    version?: OCPPVersion | null,
+    prefix?: string,
+  ): string {
+    const endpointPrefix = prefix ?? this._module.config.modules.reporting.endpointPrefix;
     return super._toMessagePath(input, version, endpointPrefix);
   }
 }

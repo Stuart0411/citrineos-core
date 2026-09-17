@@ -148,8 +148,7 @@ export const OCPP2_1_CALL_SCHEMA_RECORD: Record<string, object> = {
   [OCPP_CallAction.MeterValues]: OCPP2_1.MeterValuesRequestSchema,
   [OCPP_CallAction.NotifyChargingLimit]: OCPP2_1.NotifyChargingLimitRequestSchema,
   [OCPP_CallAction.NotifyCustomerInformation]: OCPP2_1.NotifyCustomerInformationRequestSchema,
-  [OCPP_CallAction.NotifyAllowedEnergyTransfer]:
-    OCPP2_1.NotifyAllowedEnergyTransferRequestSchema,
+  [OCPP_CallAction.NotifyAllowedEnergyTransfer]: OCPP2_1.NotifyAllowedEnergyTransferRequestSchema,
   [OCPP_CallAction.NotifyDERAlarm]: OCPP2_1.NotifyDERAlarmRequestSchema,
   [OCPP_CallAction.NotifyDERStartStop]: OCPP2_1.NotifyDERStartStopRequestSchema,
 
@@ -335,8 +334,7 @@ export const OCPP2_1_CALL_RESULT_SCHEMA_RECORD: Record<string, object> = {
   [OCPP_CallAction.MeterValues]: OCPP2_1.MeterValuesResponseSchema,
   [OCPP_CallAction.NotifyChargingLimit]: OCPP2_1.NotifyChargingLimitResponseSchema,
   [OCPP_CallAction.NotifyCustomerInformation]: OCPP2_1.NotifyCustomerInformationResponseSchema,
-  [OCPP_CallAction.NotifyAllowedEnergyTransfer]:
-    OCPP2_1.NotifyAllowedEnergyTransferResponseSchema,
+  [OCPP_CallAction.NotifyAllowedEnergyTransfer]: OCPP2_1.NotifyAllowedEnergyTransferResponseSchema,
   [OCPP_CallAction.NotifyDERAlarm]: OCPP2_1.NotifyDERAlarmResponseSchema,
   [OCPP_CallAction.NotifyDERStartStop]: OCPP2_1.NotifyDERStartStopResponseSchema,
   [OCPP_CallAction.NotifyDisplayMessages]: OCPP2_1.NotifyDisplayMessagesResponseSchema,

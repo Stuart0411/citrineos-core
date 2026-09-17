@@ -32,18 +32,21 @@ import {
   type OcppResponse,
   type OCPPVersionType,
   type SystemConfig,
+} from '@citrineos/types';
+import {
   ErrorCode,
   EventGroup,
   MessageOrigin,
   MessageState,
   MessageTypeId,
   NO_ACTION,
+  OCPP2_0_1,
   OCPP2_1,
   OCPP_CallAction,
   OCPPVersion,
   RetryMessageError,
   RetryMessageErrorCode,
-} from '@citrineos/base';
+} from '@citrineos/types';
 import type { ILocationRepository } from '@dal/interfaces/repositories.js';
 import {
   CallHandledOutcome,
@@ -438,7 +441,10 @@ export class MessageRouterImpl extends AbstractMessageRouter implements IMessage
           identifier,
           message,
         );
-        throw new RetryMessageError('Call already in progress', RetryMessageErrorCode.CallInProgress);
+        throw new RetryMessageError(
+          'Call already in progress',
+          RetryMessageErrorCode.CallInProgress,
+        );
       }
     } else {
       recordOcppCallSent(String(action), protocol, CallSentOutcome.Rejected);

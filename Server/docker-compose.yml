@@ -126,7 +126,7 @@ services:
 
   # Initialize MinIO
   minio-init:
-    image: minio/mc
+    image: quay.io/minio/mc:latest
     depends_on:
       minio:
         condition: service_healthy

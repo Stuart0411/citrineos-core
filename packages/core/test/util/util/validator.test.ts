@@ -472,10 +472,7 @@ describe('validateChargingProfileType', () => {
       const chargingProfile = aChargingProfileType({
         chargingProfilePurpose: OCPP2_0_1.ChargingProfilePurposeEnumType.TxProfile,
         transactionId,
-        chargingSchedule: [
-          aChargingSchedule({ id: 1 }),
-          aChargingSchedule({ id: 2 }),
-        ],
+        chargingSchedule: [aChargingSchedule({ id: 1 }), aChargingSchedule({ id: 2 })],
       });
 
       mockTransactionEventRepo.readTransactionByStationIdAndTransactionId.mockResolvedValue(

@@ -50,6 +50,7 @@ export abstract class AbstractModuleApi<T extends IModule> implements IModuleApi
   protected readonly _server: FastifyInstance;
   protected readonly _module: T;
   protected readonly _logger: Logger<ILogObj>;
+  protected readonly _ocppVersion: OCPPVersion | null;
 
   constructor(module: T, server: FastifyInstance, logger?: Logger<ILogObj>) {
     this._module = module;
@@ -58,6 +59,8 @@ export abstract class AbstractModuleApi<T extends IModule> implements IModuleApi
     this._logger = logger
       ? logger.getSubLogger({ name: this.constructor.name })
       : new Logger<ILogObj>({ name: this.constructor.name });
+    this._ocppVersion =
+      this.supportedVersions.find((version): version is OCPPVersion => version !== null) ?? null;
     this._init(this._module);
   }
 
@@ -521,9 +524,13 @@ export abstract class AbstractModuleApi<T extends IModule> implements IModuleApi
    * @param {string} prefix - The module name.
    * @returns {string} - String representation of URL path.
    */
-  protected _toMessagePath(input: CallAction, prefix?: string): string {
+  protected _toMessagePath(
+    input: CallAction,
+    version?: OCPPVersion | null,
+    prefix?: string,
+  ): string {
     const endpointPrefix = (prefix || '').replace(/^\/+|\/+$/g, '');
-    const endpointVersion = (this._ocppVersion ? this._ocppVersion : OCPPVersion.OCPP2_0_1).replace(
+    const endpointVersion = (version ?? this._ocppVersion ?? OCPPVersion.OCPP2_0_1).replace(
       /^ocpp/,
       '',
     );

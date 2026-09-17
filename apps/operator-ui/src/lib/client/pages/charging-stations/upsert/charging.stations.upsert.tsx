@@ -9,6 +9,7 @@ import {
   type ChargingStationCapabilityEnumType,
   ChargingStationParkingRestrictionEnum,
   type ChargingStationParkingRestrictionEnumType,
+  type ChargingStationCreate,
   ChargingStationProps,
   ChargingStationSchema,
   type LocationDto,
@@ -65,7 +66,6 @@ type ChargingStationUpsertProps = {
 };
 
 const ChargingStationCreateSchema = ChargingStationSchema.pick({
-  [ChargingStationProps.id]: true,
   [ChargingStationProps.ocppConnectionName]: true,
   [ChargingStationProps.locationId]: true,
   [ChargingStationProps.floorLevel]: true,
@@ -74,8 +74,8 @@ const ChargingStationCreateSchema = ChargingStationSchema.pick({
   [ChargingStationProps.use16StatusNotification0]: true,
 });
 
-const defaultChargingStation = {
-  [ChargingStationProps.id]: undefined,
+const defaultChargingStation: Omit<ChargingStationCreate, 'id'> = {
+  [ChargingStationProps.isOnline]: false,
   [ChargingStationProps.ocppConnectionName]: '',
   [ChargingStationProps.locationId]: undefined,
   [ChargingStationProps.floorLevel]: '',

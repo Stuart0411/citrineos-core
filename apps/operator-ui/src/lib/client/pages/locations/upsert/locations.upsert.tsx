@@ -140,7 +140,7 @@ export const LocationsUpsert = ({ params, allowImageUpload = false }: LocationsU
 
   const { open } = useNotification();
 
-  const originalStationIdsRef = useRef<number[]>([]);
+  const originalStationIdsRef = useRef<string[]>([]);
   const [geoPoint, setGeoPoint] = useState<GeoPoint | undefined>(
     new GeoPoint(defaultLatitude, defaultLongitude),
   );

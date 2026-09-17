@@ -34,7 +34,7 @@ export class OCPP1_6_CommandHandler extends OCPPCommandHandler {
     const queryParameters: IRequestQueryParams = {
       params: {},
     };
-    queryParameters.params['identifier'] = chargingStation.ocppConnectionName;
+    queryParameters.params['identifier'] = chargingStation.ocppConnectionName ?? chargingStation.id;
     queryParameters.params['tenantId'] = tenantPartner.tenant!.id!;
     queryParameters.params['callbackUrl'] =
       this.config.commands.ocpiBaseUrl +
@@ -66,7 +66,7 @@ export class OCPP1_6_CommandHandler extends OCPPCommandHandler {
     const queryParameters: IRequestQueryParams = {
       params: {},
     };
-    queryParameters.params['identifier'] = chargingStation.ocppConnectionName;
+    queryParameters.params['identifier'] = chargingStation.ocppConnectionName ?? chargingStation.id;
     queryParameters.params['tenantId'] = tenantPartner.tenant!.id!;
     queryParameters.params['callbackUrl'] =
       this.config.commands.ocpiBaseUrl +
@@ -98,7 +98,7 @@ export class OCPP1_6_CommandHandler extends OCPPCommandHandler {
     const queryParameters: IRequestQueryParams = {
       params: {},
     };
-    queryParameters.params['identifier'] = chargingStation.ocppConnectionName;
+    queryParameters.params['identifier'] = chargingStation.ocppConnectionName ?? chargingStation.id;
     queryParameters.params['tenantId'] = tenantPartner.tenant!.id!;
     queryParameters.params['callbackUrl'] =
       this.config.commands.ocpiBaseUrl +

@@ -15,7 +15,7 @@ export class SequelizeStationEnergyTransferPolicyRepository
   implements IStationEnergyTransferPolicyRepository
 {
   constructor(config: BootstrapConfig, logger?: Logger<ILogObj>, sequelizeInstance?: Sequelize) {
-    super(config, StationEnergyTransferPolicy.MODEL_NAME, logger, sequelizeInstance);
+    super({ config, namespace: StationEnergyTransferPolicy.MODEL_NAME, logger, sequelizeInstance });
   }
 
   async upsertAllowedEnergyTransfer(

@@ -16,6 +16,7 @@ import {
   type IWebsocketConnection,
 } from '@citrineos/base';
 import {
+  type ChargingStationDto,
   EventGroup,
   type HandlerProperties,
   OCPP1_6,
@@ -28,7 +29,7 @@ import type {
   IChangeConfigurationRepository,
   ILocationRepository,
 } from '@dal/interfaces/repositories.js';
-import { ChangeConfiguration, ChargingStation } from '@dal/layers/sequelize/index.js';
+import { ChangeConfiguration } from '@dal/layers/sequelize/index.js';
 import type { BootNotificationService } from '@modules/Configuration/src/module/BootNotificationService.js';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -122,22 +123,19 @@ export class BootNotificationRequestOcpp16Handler extends AbstractHandler {
           );
         }
       }
-      await this._locationRepository.createOrUpdateChargingStation(
+      await this._locationRepository.createOrUpdateChargingStation(tenantId, {
         tenantId,
-        ChargingStation.build({
-          tenantId,
-          ocppConnectionName,
-          chargePointVendor: request.chargePointVendor,
-          chargePointModel: request.chargePointModel,
-          chargePointSerialNumber: request.chargePointSerialNumber,
-          chargeBoxSerialNumber: request.chargeBoxSerialNumber,
-          firmwareVersion: request.firmwareVersion,
-          iccid: request.iccid,
-          imsi: request.imsi,
-          meterType: request.meterType,
-          meterSerialNumber: request.meterSerialNumber,
-        }),
-      );
+        ocppConnectionName,
+        chargePointVendor: request.chargePointVendor,
+        chargePointModel: request.chargePointModel,
+        chargePointSerialNumber: request.chargePointSerialNumber,
+        chargeBoxSerialNumber: request.chargeBoxSerialNumber,
+        firmwareVersion: request.firmwareVersion,
+        iccid: request.iccid,
+        imsi: request.imsi,
+        meterType: request.meterType,
+        meterSerialNumber: request.meterSerialNumber,
+      } as ChargingStationDto);
     })().catch((error) => {
       this._logger.error(`Error updating station ${ocppConnectionName} with boot info:`, error);
     });

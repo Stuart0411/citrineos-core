@@ -3,9 +3,9 @@
 // SPDX-License-Identifier: Apache-2.0
 'use strict';
 
-import { DEFAULT_TENANT_ID } from '@citrineos/base';
 import { QueryInterface } from 'sequelize';
 
+const DEFAULT_TENANT_ID = 1;
 const TENANTS_TABLE = `Tenants`;
 
 export default {

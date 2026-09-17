@@ -46,7 +46,7 @@ export abstract class BaseTransactionMapper {
           GetLocationByIdQueryResult,
           GetLocationByIdQueryVariables
         >(GET_LOCATION_BY_ID_QUERY, { id: transaction.locationId });
-        transaction.location = result.Locations[0] as LocationDto;
+        transaction.location = result.Locations[0] as unknown as LocationDto;
       }
       const location = transaction.location;
       if (!location) {

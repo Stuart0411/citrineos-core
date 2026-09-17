@@ -1,8 +1,9 @@
 // SPDX-FileCopyrightText: 2025 Contributors to the CitrineOS Project
 //
 // SPDX-License-Identifier: Apache-2.0
-import { DEFAULT_TENANT_ID } from '@citrineos/base';
 import { DataTypes, QueryInterface } from 'sequelize';
+
+const DEFAULT_TENANT_ID = 1;
 
 export default {
   up: async (queryInterface: QueryInterface) => {

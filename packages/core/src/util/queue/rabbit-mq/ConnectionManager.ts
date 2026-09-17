@@ -6,9 +6,9 @@ import { AbstractConnectionManager } from '@citrineos/base';
 import amqp from 'amqplib';
 import { type ILogObj, Logger } from 'tslog';
 
-export class RabbitMQConnectionManager extends AbstractConnectionManager<amqp.Connection> {
+export class RabbitMQConnectionManager extends AbstractConnectionManager<amqp.ChannelModel> {
   private static readonly MAX_EVENT_LISTENERS = 30;
-  private connection: amqp.Connection | null = null;
+  private connection: amqp.ChannelModel | null = null;
   private isConnecting = false;
   private reconnectAttempts = 0;
   private reconnectDelay = 1000; // Start with 1 second
@@ -27,6 +27,8 @@ export class RabbitMQConnectionManager extends AbstractConnectionManager<amqp.Co
     logger?: Logger<ILogObj>;
   }) {
     super(logger);
+    this.maxReconnectDelay = maxReconnectDelay;
+    this.url = amqpUrl;
     // Multiple modules legitimately subscribe to broker lifecycle events.
     // Raise the threshold to avoid false-positive leak warnings in normal runtime wiring.
     this.setMaxListeners(RabbitMQConnectionManager.MAX_EVENT_LISTENERS);
@@ -48,18 +50,19 @@ export class RabbitMQConnectionManager extends AbstractConnectionManager<amqp.Co
     this.isConnecting = true;
 
     try {
-      this.connection = await amqp.connect(this.url);
+      const connection = await amqp.connect(this.url);
+      this.connection = connection;
       this.reconnectAttempts = 0;
       this.reconnectDelay = 1000;
       this.isConnecting = false;
       this.state = 'connected';
 
-      this.connection.on('error', (err) => {
+      connection.on('error', (err) => {
         this._logger.error('RabbitMQ connection error:', err);
         this.emit('error', err);
       });
 
-      this.connection.on('close', () => {
+      connection.on('close', () => {
         this._logger.warn('RabbitMQ connection closed');
         this.connection = null;
         this.state = 'disconnected';
@@ -69,9 +72,9 @@ export class RabbitMQConnectionManager extends AbstractConnectionManager<amqp.Co
         });
       });
 
-      this.emit('connected', this.connection);
+      this.emit('connected', connection);
       this._logger.info('Connected to RabbitMQ');
-      return this.connection;
+      return connection;
     } catch (error) {
       this.isConnecting = false;
       this._logger.error('Failed to connect to RabbitMQ:', error);

@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-import { OCPP2_1 } from '@citrineos/base';
+import { OCPP2_1 } from '@citrineos/types';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ChargingSchedule } from '../model/ChargingProfile/ChargingSchedule.js';
 import { SequelizeChargingProfileRepository } from './ChargingProfile.js';
@@ -27,17 +27,18 @@ describe('ChargingProfile repository dynamic fields', () => {
     const evseRepo = {} as any;
     const compositeScheduleRepo = {} as any;
 
-    const repository = new SequelizeChargingProfileRepository(
-      {} as any,
-      undefined,
-      {} as any,
-      chargingNeedsRepo,
-      chargingScheduleRepo,
-      salesTariffRepo,
-      transactionRepo,
-      evseRepo,
-      compositeScheduleRepo,
-    );
+    const repository = new SequelizeChargingProfileRepository({
+      config: {} as any,
+      sequelizeInstance: {} as any,
+      logger: undefined,
+    });
+
+    repository.chargingNeeds = chargingNeedsRepo;
+    repository.chargingSchedule = chargingScheduleRepo;
+    repository.salesTariff = salesTariffRepo;
+    repository.transaction = transactionRepo;
+    repository.evse = evseRepo;
+    repository.compositeSchedule = compositeScheduleRepo;
 
     vi.spyOn(repository, 'readOrCreateByQuery').mockResolvedValue([
       {

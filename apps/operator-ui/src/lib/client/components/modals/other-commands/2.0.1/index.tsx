@@ -40,7 +40,7 @@ export const OCPP2_0_1_Commands = ({ station }: OCPP2_0_1_CommandsProps) => {
     resource: ResourceType.CHARGING_STATIONS,
     action: ActionType.COMMAND,
     params: {
-      id: station.ocppConnectionName,
+      id: station.ocppConnectionName ?? station.id,
       commandType: 'otherCommands',
     },
   });

@@ -59,7 +59,7 @@ import { StatusNotification } from './StatusNotification.js';
  * Currently, this data model is internal to CitrineOS. In the future, it will be analogous to an OCPI ChargingStation.
  */
 @Table
-export class ChargingStation extends Model implements ChargingStationDto {
+export class ChargingStation extends Model {
   static readonly MODEL_NAME: string = Namespace.ChargingStation;
 
   @AutoIncrement

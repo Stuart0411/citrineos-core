@@ -35,7 +35,7 @@ export class LocationRepository {
           `Multiple charging stations found for id ${stationId}. Returning the first one. All entries: ${JSON.stringify(response.ChargingStations)}`,
         );
       }
-      return response.ChargingStations[0] as ChargingStationDto;
+      return response.ChargingStations[0] as unknown as ChargingStationDto;
     } catch (e) {
       this.logger.error('Error while fetching charging station', e);
       return undefined;
