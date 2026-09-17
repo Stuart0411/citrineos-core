@@ -52,7 +52,7 @@ jobs:
 
   publish-swagger:
     needs: build
-    if: needs.build.outputs.swagger_valid == 'true'
+    if: github.repository_owner == 'citrineos' && needs.build.outputs.swagger_valid == 'true'
     runs-on: ubuntu-latest
 
     steps:
