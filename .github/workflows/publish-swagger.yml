@@ -52,7 +52,7 @@ jobs:
 
   publish-swagger:
     needs: build
-    if: github.repository_owner == 'citrineos' && needs.build.outputs.swagger_valid == 'true'
+    if: github.repository == 'Stuart0411/citrineos-core' && needs.build.outputs.swagger_valid == 'true'
     runs-on: ubuntu-latest
 
     steps:
@@ -69,14 +69,14 @@ jobs:
       - name: Checkout citrineos.github.io
         uses: actions/checkout@v4
         with:
-          repository: citrineos/citrineos.github.io
+          repository: Stuart0411/citrineos.github.io
           persist-credentials: false
           path: citrineos.github.io
 
       - name: Push Swagger JSON
         run: |
           cd citrineos.github.io
-          git remote set-url origin git@github.com:citrineos/citrineos.github.io.git
+          git remote set-url origin git@github.com:Stuart0411/citrineos.github.io.git
           git checkout -b swagger-updates || git checkout swagger-updates
           cp ../swagger.json ./docs/assets
           git config user.name "GitHub Actions"
