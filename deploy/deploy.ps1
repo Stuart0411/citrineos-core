@@ -19,9 +19,6 @@ $env:CITRINE_IMAGE = $fullImage
 if ([string]::IsNullOrWhiteSpace($env:CITRINE_HOST_PORT)) {
   $env:CITRINE_HOST_PORT = '8080'
 }
-if ([string]::IsNullOrWhiteSpace($env:CITRINE_DEPENDENCY_NETWORK)) {
-  $env:CITRINE_DEPENDENCY_NETWORK = 'server_default'
-}
 
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $composeFilePath = Join-Path $scriptDir 'docker-compose.release.yml'
@@ -36,22 +33,15 @@ if (-not (Test-Path $envFilePath)) {
 if (-not (Select-String -Path $envFilePath -Pattern '^BOOTSTRAP_CITRINEOS_DATABASE_USERNAME=' -Quiet)) {
   throw "Runtime env file must define BOOTSTRAP_CITRINEOS_DATABASE_USERNAME. The legacy ...DATABASE_USER variable is ignored."
 }
-
-docker network inspect $env:CITRINE_DEPENDENCY_NETWORK | Out-Null
-if ($LASTEXITCODE -ne 0) {
-  throw "Dependency network '$($env:CITRINE_DEPENDENCY_NETWORK)' was not found. Start PostgreSQL, RabbitMQ, and MinIO on that external Docker network, or set CITRINE_DEPENDENCY_NETWORK to their network name."
+$runtimeEnv = Get-Content $envFilePath
+$databasePassword = ($runtimeEnv | Where-Object { $_ -match '^BOOTSTRAP_CITRINEOS_DATABASE_PASSWORD=' }) -replace '^BOOTSTRAP_CITRINEOS_DATABASE_PASSWORD=', ''
+if ([string]::IsNullOrWhiteSpace($databasePassword) -or $databasePassword -eq 'replace-me') {
+  throw "Runtime env file must set BOOTSTRAP_CITRINEOS_DATABASE_PASSWORD to a non-placeholder value."
 }
-$networkContainers = docker network inspect --format '{{range .Containers}}{{.Name}}{{"\n"}}{{end}}' $env:CITRINE_DEPENDENCY_NETWORK
-$missingDependencies = @('ocpp-db', 'amqp-broker', 'minio') | Where-Object {
-  $networkContainers -notmatch [regex]::Escape($_)
-}
-if ($missingDependencies.Count -gt 0) {
-  throw "Dependency network '$($env:CITRINE_DEPENDENCY_NETWORK)' is missing: $($missingDependencies -join ', '). Start the required PostgreSQL, RabbitMQ, and MinIO containers before deploying."
-}
+$env:CITRINE_DATABASE_PASSWORD = $databasePassword
 
 Write-Host "Deploying image: $fullImage" -ForegroundColor Cyan
 Write-Host "Publishing Citrine on host port: $($env:CITRINE_HOST_PORT)" -ForegroundColor Cyan
-Write-Host "Using dependency network: $($env:CITRINE_DEPENDENCY_NETWORK)" -ForegroundColor Cyan
 
 Write-Host "Pulling image..." -ForegroundColor Cyan
 docker pull $fullImage

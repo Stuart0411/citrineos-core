@@ -3,10 +3,38 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # Immutable-image release stack for CitrineOS server.
-# Dependencies (ocpp-db, amqp-broker, minio) must already be running.
 # Set CITRINE_IMAGE before calling: $env:CITRINE_IMAGE = "ghcr.io/owner/citrineos-server:TAG"
 
 services:
+  ocpp-db:
+    image: postgis/postgis:16-3.5
+    platform: linux/amd64
+    environment:
+      POSTGRES_DB: citrine
+      POSTGRES_USER: citrine
+      POSTGRES_PASSWORD: ${CITRINE_DATABASE_PASSWORD:?Set CITRINE_DATABASE_PASSWORD}
+    volumes:
+      - ocpp-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -p 5432 -U citrine -d citrine"]
+      interval: 5s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  amqp-broker:
+    image: rabbitmq:3-management
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    volumes:
+      - amqp-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD-SHELL", "rabbitmq-diagnostics -q check_port_connectivity"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+
   citrine:
     image: ${CITRINE_IMAGE:?Set CITRINE_IMAGE to a fully-qualified image tag}
     pull_policy: always
@@ -20,6 +48,11 @@ services:
     env_file:
       - ./citrine.runtime.env
     restart: unless-stopped
+    depends_on:
+      ocpp-db:
+        condition: service_healthy
+      amqp-broker:
+        condition: service_healthy
     healthcheck:
       test:
         - CMD-SHELL
@@ -32,10 +65,6 @@ services:
       timeout: 10s
       retries: 5
       start_period: 60s
-    networks:
-      - server_default
-
-networks:
-  server_default:
-    name: ${CITRINE_DEPENDENCY_NETWORK:-server_default}
-    external: true
+volumes:
+  ocpp-db-data:
+  amqp-data:
