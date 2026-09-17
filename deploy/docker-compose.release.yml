@@ -37,4 +37,5 @@ services:
 
 networks:
   server_default:
+    name: ${CITRINE_DEPENDENCY_NETWORK:-server_default}
     external: true
