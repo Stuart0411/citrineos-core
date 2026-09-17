@@ -84,7 +84,9 @@ export class LocationsService {
 
     // Map GraphQL DTOs to OCPI DTOs
     const locations =
-      response.Locations.map((value) => LocationMapper.fromGraphql(value as unknown as LocationDto)) ?? [];
+      response.Locations.map((value) =>
+        LocationMapper.fromGraphql(value as unknown as LocationDto),
+      ) ?? [];
     const locationsTotal = response.Locations_aggregate?.aggregate?.count ?? 0;
 
     return buildOcpiPaginatedResponse(
@@ -122,9 +124,7 @@ export class LocationsService {
           `Multiple locations found for id ${locationId}. Returning the first one. All entries: ${JSON.stringify(response.Locations)}`,
         );
       }
-      const location = LocationMapper.fromGraphql(
-        response.Locations[0] as unknown as LocationDto,
-      );
+      const location = LocationMapper.fromGraphql(response.Locations[0] as unknown as LocationDto);
       return buildOcpiResponse(
         OcpiResponseStatusCode.GenericSuccessCode,
         location,

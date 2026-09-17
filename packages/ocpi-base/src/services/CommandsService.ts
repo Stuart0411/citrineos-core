@@ -142,7 +142,8 @@ export class CommandsService {
         'Unknown charging station',
       );
     }
-    const chargingStation = chargingStationResponse.ChargingStations[0] as unknown as ChargingStationDto;
+    const chargingStation = chargingStationResponse
+      .ChargingStations[0] as unknown as ChargingStationDto;
     if (!chargingStation.isOnline) {
       this.logger.error('Charging station is offline', {
         stationId: chargingStation.id,
@@ -282,7 +283,8 @@ export class CommandsService {
         'Unknown charging station',
       );
     }
-    const chargingStation = chargingStationResponse.ChargingStations[0] as unknown as ChargingStationDto;
+    const chargingStation = chargingStationResponse
+      .ChargingStations[0] as unknown as ChargingStationDto;
     if (!chargingStation.isOnline) {
       this.logger.error('Charging station is offline', {
         stationId: chargingStation.id,

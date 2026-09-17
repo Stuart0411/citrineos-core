@@ -241,7 +241,8 @@ export class TokensService {
           `Unknown charging station ${realTimeAuthRequest.ocppConnectionName} at location ${realTimeAuthRequest.locationId}`,
         );
       }
-      const chargingStation = chargingStationResponse.ChargingStations[0] as unknown as ChargingStationDto;
+      const chargingStation = chargingStationResponse
+        .ChargingStations[0] as unknown as ChargingStationDto;
       locationReferences = {
         location_id: realTimeAuthRequest.locationId.toString(),
         evse_uids: chargingStation.evses!.map((evse) =>

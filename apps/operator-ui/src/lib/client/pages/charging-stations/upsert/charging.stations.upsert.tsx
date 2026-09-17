@@ -74,7 +74,7 @@ const ChargingStationCreateSchema = ChargingStationSchema.pick({
   [ChargingStationProps.use16StatusNotification0]: true,
 });
 
-const defaultChargingStation: ChargingStationCreate = {
+const defaultChargingStation: Omit<ChargingStationCreate, 'id'> = {
   [ChargingStationProps.isOnline]: false,
   [ChargingStationProps.ocppConnectionName]: '',
   [ChargingStationProps.locationId]: undefined,
