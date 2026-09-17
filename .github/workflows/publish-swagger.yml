@@ -56,6 +56,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Start SSH agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.CITRINEOS_GITHUB_IO_DEPLOY_KEY }}
+
       - name: Download Swagger Artifact
         uses: actions/download-artifact@v4
         with:
@@ -65,12 +70,13 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: citrineos/citrineos.github.io
-          ssh-key: ${{ secrets.CITRINEOS_GITHUB_IO_DEPLOY_KEY }}
+          persist-credentials: false
           path: citrineos.github.io
 
       - name: Push Swagger JSON
         run: |
           cd citrineos.github.io
+          git remote set-url origin git@github.com:citrineos/citrineos.github.io.git
           git checkout -b swagger-updates || git checkout swagger-updates
           cp ../swagger.json ./docs/assets
           git config user.name "GitHub Actions"
