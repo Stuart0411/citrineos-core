@@ -56,17 +56,32 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Check Pages deploy key
+        id: deploy-key
+        env:
+          DEPLOY_KEY: ${{ secrets.CITRINEOS_GITHUB_IO_DEPLOY_KEY }}
+        run: |
+          if [[ -n "$DEPLOY_KEY" ]]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "Pages deploy key is not configured; skipping Swagger publication."
+          fi
+
       - name: Start SSH agent
+        if: steps.deploy-key.outputs.available == 'true'
         uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.CITRINEOS_GITHUB_IO_DEPLOY_KEY }}
 
       - name: Download Swagger Artifact
+        if: steps.deploy-key.outputs.available == 'true'
         uses: actions/download-artifact@v4
         with:
           name: swagger-json
 
       - name: Checkout citrineos.github.io
+        if: steps.deploy-key.outputs.available == 'true'
         uses: actions/checkout@v4
         with:
           repository: Stuart0411/citrineos.github.io
@@ -74,6 +89,7 @@ jobs:
           path: citrineos.github.io
 
       - name: Push Swagger JSON
+        if: steps.deploy-key.outputs.available == 'true'
         run: |
           cd citrineos.github.io
           git remote set-url origin git@github.com:Stuart0411/citrineos.github.io.git
