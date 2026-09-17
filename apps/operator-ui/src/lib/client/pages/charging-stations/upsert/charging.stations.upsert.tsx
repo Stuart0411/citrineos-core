@@ -66,7 +66,6 @@ type ChargingStationUpsertProps = {
 };
 
 const ChargingStationCreateSchema = ChargingStationSchema.pick({
-  [ChargingStationProps.id]: true,
   [ChargingStationProps.ocppConnectionName]: true,
   [ChargingStationProps.locationId]: true,
   [ChargingStationProps.floorLevel]: true,
@@ -76,7 +75,6 @@ const ChargingStationCreateSchema = ChargingStationSchema.pick({
 });
 
 const defaultChargingStation: ChargingStationCreate = {
-  [ChargingStationProps.id]: '',
   [ChargingStationProps.isOnline]: false,
   [ChargingStationProps.ocppConnectionName]: '',
   [ChargingStationProps.locationId]: undefined,

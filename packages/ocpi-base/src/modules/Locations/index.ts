@@ -124,7 +124,7 @@ export class LocationsModule extends AbstractDtoModule implements OcpiModule {
       );
       return;
     }
-    const chargingStationDto = chargingStationResponse.ChargingStations[0] as ChargingStationDto;
+    const chargingStationDto = chargingStationResponse.ChargingStations[0] as unknown as ChargingStationDto;
 
     await this.locationsBroadcaster.broadcastPutEvse(tenant, evseDto, chargingStationDto);
   }
@@ -158,7 +158,7 @@ export class LocationsModule extends AbstractDtoModule implements OcpiModule {
       );
       return;
     }
-    const chargingStationDto = chargingStationResponse.ChargingStations[0] as ChargingStationDto;
+    const chargingStationDto = chargingStationResponse.ChargingStations[0] as unknown as ChargingStationDto;
 
     await this.locationsBroadcaster.broadcastPatchEvse(tenant, evseDto, chargingStationDto);
   }
@@ -195,7 +195,7 @@ export class LocationsModule extends AbstractDtoModule implements OcpiModule {
       return;
     }
     connectorDto.chargingStation = chargingStationResponse
-      .ChargingStations[0] as ChargingStationDto;
+      .ChargingStations[0] as unknown as ChargingStationDto;
 
     await this.locationsBroadcaster.broadcastPutConnector(tenant, connectorDto);
   }
@@ -232,7 +232,7 @@ export class LocationsModule extends AbstractDtoModule implements OcpiModule {
       return;
     }
     connectorDto.chargingStation = chargingStationResponse
-      .ChargingStations[0] as ChargingStationDto;
+      .ChargingStations[0] as unknown as ChargingStationDto;
 
     // TODO: filter out status updates, since they should only apply at the EVSE level
 
