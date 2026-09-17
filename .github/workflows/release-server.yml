@@ -67,7 +67,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: ./Server/deploy.Dockerfile
+          file: ./apps/ocpp-server/deploy.Dockerfile
           platforms: linux/amd64
           push: true
           tags: ${{ steps.image.outputs.image_name }}:${{ steps.tag.outputs.tag }}
@@ -77,7 +77,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: ./Server/deploy.Dockerfile
+          file: ./apps/ocpp-server/deploy.Dockerfile
           platforms: linux/amd64
           push: true
           tags: ${{ steps.image.outputs.image_name }}:latest
