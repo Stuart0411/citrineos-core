@@ -185,13 +185,17 @@ export class EmsDataApi extends AbstractModuleApi<EmsModule> implements IEmsModu
   }
 
   @AsDataEndpoint(Namespace.EmsMqttBridge, HttpMethod.Get)
-  getMqttBridgeStatus(): {
+  async getMqttBridgeStatus(): Promise<{
     enabled: boolean;
     started: boolean;
     startupMode: 'non_fatal' | 'required' | null;
     siteIntentsTopic: string | null;
     lastError: string | null;
-  } {
+  }> {
+    const status = this._module.getMqttBridgeStatus();
+    if (status.enabled && !status.started) {
+      await this._module.startMqttBridge();
+    }
     return this._module.getMqttBridgeStatus();
   }
 
