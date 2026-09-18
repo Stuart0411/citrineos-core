@@ -51,6 +51,7 @@ export class NotifyEventRequestOcpp2Handler extends AbstractHandler {
           message.context.tenantId,
           event.component,
           event.variable,
+          ocppConnectionName,
         );
       await this._variableMonitoringRepository.createEventDatumByComponentIdAndVariableIdAndStationId(
         message.context.tenantId,

@@ -234,6 +234,11 @@ export class SequelizeVariableMonitoringRepository
       .then((variableMonitorings) => variableMonitorings[0]); // TODO: Make sure this uniqueness constraint is actually enforced.
 
     if (savedVariableMonitoring) {
+      const databaseId = savedVariableMonitoring.get('databaseId');
+      if (databaseId == null) {
+        throw new Error('Variable monitoring record has no databaseId');
+      }
+
       // The Id is only returned from Charging Station when status is accepted.
       if (result.status === OCPP2_0_1.SetMonitoringStatusEnumType.Accepted && result.id) {
         await this.updateByKey(
@@ -241,7 +246,7 @@ export class SequelizeVariableMonitoringRepository
           {
             id: result.id,
           },
-          savedVariableMonitoring.get('databaseId').toString(),
+          String(databaseId),
         );
       }
 
@@ -251,12 +256,12 @@ export class SequelizeVariableMonitoringRepository
           tenantId,
           status: result.status,
           statusInfo: result.statusInfo,
-          variableMonitoringId: savedVariableMonitoring.get('databaseId'),
+          variableMonitoringId: databaseId,
         }),
       );
       // Reload in order to include the statuses
       return await this.readAllByQuery(tenantId, {
-        where: { databaseId: savedVariableMonitoring.get('databaseId') },
+        where: { databaseId },
         include: [VariableMonitoringStatus],
       }).then((variableMonitorings) => variableMonitorings[0]);
     } else {
