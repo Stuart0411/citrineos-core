@@ -623,12 +623,7 @@ export class SequelizeTransactionEventRepository
       ocppConnectionName,
       evseTypeId: evseType.databaseId,
     };
-    const existing = await Evse.findOne({ where, transaction });
-    if (existing) {
-      return { evse: existing, evseTypeDatabaseId: evseType.databaseId };
-    }
-
-    const evse = await Evse.create(
+    const [evse] = await Evse.upsert(
       {
         ...where,
         evseId: String(evseTypeId),
