@@ -190,6 +190,7 @@ export class EmsDataApi extends AbstractModuleApi<EmsModule> implements IEmsModu
     started: boolean;
     startupMode: 'non_fatal' | 'required' | null;
     siteIntentsTopic: string | null;
+    lastError: string | null;
   } {
     return this._module.getMqttBridgeStatus();
   }
@@ -346,6 +347,7 @@ export class EmsDataApi extends AbstractModuleApi<EmsModule> implements IEmsModu
     started: boolean;
     startupMode: 'non_fatal' | 'required' | null;
     siteIntentsTopic: string | null;
+    lastError: string | null;
   }> {
     await this._module.startMqttBridge();
     return this._module.getMqttBridgeStatus();
@@ -357,6 +359,7 @@ export class EmsDataApi extends AbstractModuleApi<EmsModule> implements IEmsModu
     started: boolean;
     startupMode: 'non_fatal' | 'required' | null;
     siteIntentsTopic: string | null;
+    lastError: string | null;
   }> {
     await this._module.stopMqttBridge();
     return this._module.getMqttBridgeStatus();

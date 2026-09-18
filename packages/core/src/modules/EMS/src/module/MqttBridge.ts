@@ -37,6 +37,7 @@ type IntakeEventPayload = {
 export class EmsMqttBridge {
   private client?: MqttClient;
   private started = false;
+  private lastError: string | null = null;
 
   constructor(
     private readonly config: SystemConfig,
@@ -55,6 +56,7 @@ export class EmsMqttBridge {
 
     const mqttConfig = this.config.modules.ems?.mqtt;
     if (!mqttConfig?.enabled) {
+      this.lastError = null;
       this.logger.info('EMS MQTT bridge disabled by configuration.');
       return;
     }
@@ -67,6 +69,9 @@ export class EmsMqttBridge {
     const clientId = mqttConfig.clientId || `citrine-ems-${process.pid}`;
     const topic = mqttConfig.siteIntentsTopic || 'citrine/ems/site/+/intent/current';
     const connectTimeoutMs = mqttConfig.connectTimeoutMs ?? 5000;
+    this.logger.info(
+      `Starting EMS MQTT bridge: broker=${mqttConfig.brokerUrl}, topic=${topic}, clientId=${clientId}`,
+    );
 
     this.client = this.connectFn(mqttConfig.brokerUrl, {
       clientId,
@@ -80,9 +85,11 @@ export class EmsMqttBridge {
       void this.handleMessage(receivedTopic, payload);
     });
     this.client.on('error', (error) => {
+      this.lastError = error.message;
       this.logger.warn(`EMS MQTT bridge error: ${error.message}`);
     });
     this.client.on('close', () => {
+      this.started = false;
       this.logger.warn('EMS MQTT bridge connection closed.');
     });
 
@@ -137,6 +144,7 @@ export class EmsMqttBridge {
       });
 
       this.started = true;
+      this.lastError = null;
       this.logger.info(`EMS MQTT bridge subscribed to ${topic}`);
     } catch (error) {
       await this.handleStartupFailure(error);
@@ -163,6 +171,10 @@ export class EmsMqttBridge {
 
   isEnabled(): boolean {
     return this.config.modules.ems?.mqtt?.enabled ?? false;
+  }
+
+  getLastError(): string | null {
+    return this.lastError;
   }
 
   private async handleMessage(topic: string, payload: Buffer): Promise<void> {
@@ -459,6 +471,7 @@ export class EmsMqttBridge {
   private async handleStartupFailure(error: unknown): Promise<void> {
     const mqttConfig = this.config.modules.ems?.mqtt;
     const message = error instanceof Error ? error.message : 'Unknown EMS MQTT startup failure';
+    this.lastError = message;
 
     if (mqttConfig?.startupMode === 'required') {
       throw error instanceof Error ? error : new Error(message);

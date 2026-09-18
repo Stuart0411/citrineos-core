@@ -888,12 +888,14 @@ export class EmsModule extends AbstractModule {
     started: boolean;
     startupMode: 'non_fatal' | 'required' | null;
     siteIntentsTopic: string | null;
+    lastError: string | null;
   } {
     return {
       enabled: this._mqttBridge.isEnabled(),
       started: this._mqttBridge.isStarted(),
       startupMode: this.config.modules.ems?.mqtt?.startupMode ?? null,
       siteIntentsTopic: this.config.modules.ems?.mqtt?.siteIntentsTopic ?? null,
+      lastError: this._mqttBridge.getLastError(),
     };
   }
 
