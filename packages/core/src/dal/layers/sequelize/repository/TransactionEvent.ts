@@ -8,7 +8,7 @@ import {
   OCPP1_6,
   OCPP2_0_1,
 } from '@citrineos/types';
-import type { WhereOptions } from 'sequelize';
+import type { Transaction as SequelizeTransaction, WhereOptions } from 'sequelize';
 import { Op } from 'sequelize';
 import type {
   IChargingStationSequenceRepository,
@@ -124,33 +124,23 @@ export class SequelizeTransactionEventRepository
       if (existingTransaction) {
         let evseId = existingTransaction.evseId;
         if (!evseId && value.evse) {
-          const [evse] = await this.evse.readOrCreateByQuery(tenantId, {
-            where: {
-              tenantId,
-              ocppConnectionName: ocppConnectionName,
-              evseTypeId: value.evse.id,
-            },
-            defaults: {
-              evseId: String(value.evse.id),
-            },
-            transaction: sequelizeTransaction,
-          });
+          const evse = await this.readOrCreateOcpp2Evse(
+            tenantId,
+            ocppConnectionName,
+            value.evse.id,
+            sequelizeTransaction,
+          );
           evseId = evse.id;
         }
         let connectorId = existingTransaction.connectorId;
         let tariffId = existingTransaction.tariffId;
         if (!connectorId && value.evse?.connectorId) {
-          const [evse] = await this.evse.readOrCreateByQuery(tenantId, {
-            where: {
-              tenantId,
-              ocppConnectionName: ocppConnectionName,
-              evseTypeId: value.evse.id,
-            },
-            defaults: {
-              evseId: String(value.evse.id),
-            },
-            transaction: sequelizeTransaction,
-          });
+          const evse = await this.readOrCreateOcpp2Evse(
+            tenantId,
+            ocppConnectionName,
+            value.evse.id,
+            sequelizeTransaction,
+          );
           const [connector] = await this.connector.readOrCreateByQuery(tenantId, {
             where: {
               tenantId,
@@ -223,17 +213,12 @@ export class SequelizeTransactionEventRepository
         });
 
         if (value.evse) {
-          const [evse] = await this.evse.readOrCreateByQuery(tenantId, {
-            where: {
-              tenantId,
-              ocppConnectionName: ocppConnectionName,
-              evseTypeId: value.evse.id,
-            },
-            defaults: {
-              evseId: String(value.evse.id),
-            },
-            transaction: sequelizeTransaction,
-          });
+          const evse = await this.readOrCreateOcpp2Evse(
+            tenantId,
+            ocppConnectionName,
+            value.evse.id,
+            sequelizeTransaction,
+          );
           newTransaction.set('evseId', evse.id);
           if (value.evse?.connectorId) {
             const [connector] = await this.connector.readOrCreateByQuery(tenantId, {
@@ -609,6 +594,39 @@ export class SequelizeTransactionEventRepository
     });
     this.meterValue.emit('created', [savedMeterValue]);
     return savedMeterValue;
+  }
+
+  private async readOrCreateOcpp2Evse(
+    tenantId: number,
+    ocppConnectionName: string,
+    evseTypeId: number,
+    transaction: SequelizeTransaction,
+  ): Promise<Evse> {
+    const where = {
+      tenantId,
+      ocppConnectionName,
+      evseTypeId,
+    };
+    const existing = await Evse.findOne({ where, transaction });
+    if (existing) {
+      return existing;
+    }
+
+    try {
+      return await Evse.create(
+        {
+          ...where,
+          evseId: String(evseTypeId),
+        },
+        { transaction },
+      );
+    } catch (error) {
+      const raced = await Evse.findOne({ where, transaction });
+      if (raced) {
+        return raced;
+      }
+      throw error;
+    }
   }
 
   async updateTransactionTotalCostById(
