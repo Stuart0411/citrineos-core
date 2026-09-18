@@ -166,7 +166,7 @@ export class SequelizeTransactionEventRepository
           }
         }
         let authorizationId = existingTransaction.authorizationId;
-        if (!authorizationId && value.idToken) {
+        if (!authorizationId && value.idToken?.idToken) {
           // Find Authorization by IdToken
           const authorization = await Authorization.findOne({
             where: {
@@ -246,7 +246,7 @@ export class SequelizeTransactionEventRepository
           }
         }
 
-        if (value.idToken) {
+        if (value.idToken?.idToken) {
           // Find Authorization by IdToken
           const authorization = await Authorization.findOne({
             where: {
@@ -295,7 +295,10 @@ export class SequelizeTransactionEventRepository
         ...value,
       });
 
-      if (value.idToken && value.idToken.type !== OCPP2_0_1.IdTokenEnumType.NoAuthorization) {
+      if (
+        value.idToken?.idToken &&
+        value.idToken.type !== OCPP2_0_1.IdTokenEnumType.NoAuthorization
+      ) {
         const authorization = await Authorization.findOne({
           where: {
             tenantId,
