@@ -118,7 +118,7 @@ export class TransactionEventRequestOcpp2Handler extends AbstractHandler {
     const transactionId = transactionEvent.transactionInfo.transactionId;
     let response: OCPP2_response_types.TransactionEventResponse | undefined = undefined;
     let transaction: Transaction | undefined = undefined;
-    if (transactionEvent.idToken) {
+    if (transactionEvent.idToken?.idToken) {
       if (isOcpp21) {
         response = await this._transactionService.authorizeOcpp21IdToken(
           tenantId,
