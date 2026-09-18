@@ -11,6 +11,7 @@ on:
 
 jobs:
   build-and-push:
+    if: github.repository == 'Stuart0411/citrineos-operator-ui'
     runs-on: ubuntu-latest
     permissions:
       packages: write
