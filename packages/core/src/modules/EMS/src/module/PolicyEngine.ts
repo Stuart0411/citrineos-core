@@ -43,7 +43,10 @@ export class EmsPolicyEngine {
       requestedStationIds,
     );
     const stationsById = new Map<string, ChargingStationDto>(
-      stations.map((station) => [station.id, station as unknown as ChargingStationDto]),
+      stations.map((station) => [
+        String(station.id),
+        station as unknown as ChargingStationDto,
+      ]),
     );
 
     const budgetRaw =
