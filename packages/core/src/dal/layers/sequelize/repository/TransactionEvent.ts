@@ -141,16 +141,14 @@ export class SequelizeTransactionEventRepository
             value.evse.id,
             sequelizeTransaction,
           );
-          const [connector] = await this.connector.readOrCreateByQuery(tenantId, {
-            where: {
-              tenantId,
-              ocppConnectionName: ocppConnectionName,
-              evseId: evse.id,
-              evseTypeConnectorId: evseTypeDatabaseId,
-            },
-            include: [Tariff],
-            transaction: sequelizeTransaction,
-          });
+          const connector = await this.readOrCreateOcpp2Connector(
+            tenantId,
+            ocppConnectionName,
+            evse.id,
+            value.evse.connectorId,
+            evseTypeDatabaseId,
+            sequelizeTransaction,
+          );
           connectorId = connector.id;
           tariffId = connector.tariff?.id;
         }
@@ -221,20 +219,14 @@ export class SequelizeTransactionEventRepository
           );
           newTransaction.set('evseId', evse.id);
           if (value.evse?.connectorId) {
-            const [connector] = await this.connector.readOrCreateByQuery(tenantId, {
-              where: {
-                tenantId,
-                ocppConnectionName: ocppConnectionName,
-                evseId: evse.id,
-                evseTypeConnectorId: evseTypeDatabaseId,
-              },
-              defaults: {
-                connectorId: value.evse.connectorId,
-                evseTypeConnectorId: evseTypeDatabaseId,
-              },
-              include: [Tariff],
-              transaction: sequelizeTransaction,
-            });
+            const connector = await this.readOrCreateOcpp2Connector(
+              tenantId,
+              ocppConnectionName,
+              evse.id,
+              value.evse.connectorId,
+              evseTypeDatabaseId,
+              sequelizeTransaction,
+            );
             newTransaction.set('connectorId', connector.id);
             if (infoTariffId) {
               const tariff = await Tariff.findOne({
@@ -605,6 +597,17 @@ export class SequelizeTransactionEventRepository
     evseTypeId: number,
     transaction: SequelizeTransaction,
   ): Promise<{ evse: Evse; evseTypeDatabaseId: number }> {
+    const station = await ChargingStation.findOne({
+      where: { tenantId, ocppConnectionName },
+      attributes: ['id'],
+      transaction,
+    });
+    if (!station) {
+      throw new Error(
+        `Charging station ${ocppConnectionName} does not exist for tenant ${tenantId}`,
+      );
+    }
+
     const evseType =
       (await EvseType.findOne({
         where: { tenantId, id: evseTypeId },
@@ -616,6 +619,7 @@ export class SequelizeTransactionEventRepository
       ));
     const where = {
       tenantId,
+      stationId: station.id,
       ocppConnectionName,
       evseTypeId: evseType.databaseId,
     };
@@ -632,6 +636,50 @@ export class SequelizeTransactionEventRepository
       { transaction },
     );
     return { evse, evseTypeDatabaseId: evseType.databaseId };
+  }
+
+  private async readOrCreateOcpp2Connector(
+    tenantId: number,
+    ocppConnectionName: string,
+    evseId: number,
+    connectorId: number,
+    evseTypeConnectorId: number,
+    transaction: SequelizeTransaction,
+  ): Promise<Connector> {
+    const station = await ChargingStation.findOne({
+      where: { tenantId, ocppConnectionName },
+      attributes: ['id'],
+      transaction,
+    });
+    if (!station) {
+      throw new Error(
+        `Charging station ${ocppConnectionName} does not exist for tenant ${tenantId}`,
+      );
+    }
+
+    const where = {
+      tenantId,
+      stationId: station.id,
+      ocppConnectionName,
+      evseId,
+      evseTypeConnectorId,
+    };
+    const existing = await Connector.findOne({
+      where,
+      include: [Tariff],
+      transaction,
+    });
+    if (existing) {
+      return existing;
+    }
+
+    return await Connector.create(
+      {
+        ...where,
+        connectorId,
+      },
+      { transaction },
+    );
   }
 
   async updateTransactionTotalCostById(
