@@ -77,7 +77,15 @@ const EmsChargingPlanRequestBodySchema = {
 };
 
 export class EmsDataApi extends AbstractModuleApi<EmsModule> implements IEmsModuleApi {
-  constructor(emsModule: EmsModule, server: FastifyInstance, logger?: Logger<ILogObj>) {
+  constructor({
+    emsModule,
+    server,
+    logger,
+  }: {
+    emsModule: EmsModule;
+    server: FastifyInstance;
+    logger?: Logger<ILogObj>;
+  }) {
     super(emsModule, server, null, logger);
   }
 
