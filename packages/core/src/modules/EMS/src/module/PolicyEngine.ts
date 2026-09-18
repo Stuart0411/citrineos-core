@@ -253,7 +253,7 @@ export class EmsPolicyEngine {
 
     const enabled = await this.deviceModelRepository.readAllByQuerystring(tenantId, {
       tenantId,
-      stationId,
+      ocppConnectionName: stationId,
       component_name: 'SmartChargingCtrlr',
       variable_name: 'Enabled',
     });

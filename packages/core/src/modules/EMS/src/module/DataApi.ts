@@ -19,6 +19,9 @@ import {
   AbstractModuleApi,
   AsDataEndpoint,
   BadRequestError,
+  Namespace,
+  OCPP1_6_Namespace,
+  OCPP2_Namespace,
 } from '@citrineos/base';
 import type {
   EmsApplyChargingPlanResponse,
@@ -31,9 +34,6 @@ import {
   EmsChargingPlanRequestSchema,
   EmsSiteIntentCreateSchema,
   HttpMethod,
-  Namespace,
-  OCPP1_6_Namespace,
-  OCPP2_Namespace,
 } from '@citrineos/types';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { Op } from 'sequelize';
@@ -86,7 +86,7 @@ export class EmsDataApi extends AbstractModuleApi<EmsModule> implements IEmsModu
     server: FastifyInstance;
     logger?: Logger<ILogObj>;
   }) {
-    super(emsModule, server, null, logger);
+    super(emsModule, server, logger);
   }
 
   @AsDataEndpoint(

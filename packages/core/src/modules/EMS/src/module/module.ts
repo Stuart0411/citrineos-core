@@ -11,12 +11,10 @@ import type {
 } from '@citrineos/base';
 import {
   AbstractModule,
-  AsHandler,
   OCPPValidator,
 } from '@citrineos/base';
 import type { OcppModuleDependencies } from '@citrineos/base';
 import type {
-  CallAction,
   ChargingLimitSourceEnumType,
   EmsApplyChargingPlanResponse,
   EmsChargingPlanReconciliationResponse,
@@ -99,8 +97,6 @@ const toFiniteNumber = (value: unknown): number | undefined => {
 };
 
 export class EmsModule extends AbstractModule {
-  _requests: CallAction[] = [];
-  _responses: CallAction[] = [];
   protected _emsSiteIntentRepository: IEmsSiteIntentRepository;
   protected _emsDecisionRepository: IEmsDecisionRepository;
   protected _locationRepository: ILocationRepository;
@@ -171,16 +167,6 @@ export class EmsModule extends AbstractModule {
     stationEnergyTransferPolicyRepository,
   }: EmsModuleDependencies) {
     super(config, cache, handler, sender, EventGroup.Ems, ocppSender, logger, ocppValidator);
-    this._requests = Array.from(
-      new Set([...(config.modules.ems?.requests ?? []), OCPP_CallAction.ReportChargingProfiles]),
-    );
-    this._responses = Array.from(
-      new Set([
-        ...(config.modules.ems?.responses ?? []),
-        OCPP_CallAction.SetChargingProfile,
-        OCPP_CallAction.ClearChargingProfile,
-      ]),
-    );
     this._emsSiteIntentRepository = emsSiteIntentRepository;
     this._emsDecisionRepository = emsDecisionRepository;
     this._locationRepository = locationRepository;
@@ -916,7 +902,6 @@ export class EmsModule extends AbstractModule {
     await super.shutdown();
   }
 
-  @AsHandler(OCPP_2_VER_LIST, OCPP_CallAction.ReportChargingProfiles)
   protected async _handleReportChargingProfiles(
     message: IMessage<OCPP2_request_types.ReportChargingProfilesRequest>,
   ): Promise<void> {
@@ -928,7 +913,7 @@ export class EmsModule extends AbstractModule {
       await this._chargingProfileRepository.createOrUpdateChargingProfile(
         tenantId,
         OCPP2_0_1_Mapper.ChargingProfileMapper.fromChargingProfileType(chargingProfile),
-        message.context.stationId,
+        message.context.ocppConnectionName,
         message.payload.evseId,
         message.payload.chargingLimitSource,
         true,
@@ -941,7 +926,6 @@ export class EmsModule extends AbstractModule {
     );
   }
 
-  @AsHandler(OCPP_2_VER_LIST, OCPP_CallAction.SetChargingProfile)
   protected async _handleSetChargingProfile(
     message: IMessage<OCPP2_response_types.SetChargingProfileResponse>,
   ): Promise<void> {
@@ -961,7 +945,7 @@ export class EmsModule extends AbstractModule {
       {
         where: {
           tenantId,
-          stationId: message.context.stationId,
+          stationId: message.context.ocppConnectionName,
           isActive: true,
           chargingLimitSource: ChargingLimitSourceEnum.EMS,
           chargingProfilePurpose: {
@@ -976,14 +960,14 @@ export class EmsModule extends AbstractModule {
     );
 
     await this.sendCall(
-      message.context.stationId,
+      message.context.ocppConnectionName,
       tenantId,
       message.protocol,
       OCPP_CallAction.GetChargingProfiles,
       {
         requestId: await this._idGenerator.generateRequestId(
           tenantId,
-          message.context.stationId,
+          message.context.ocppConnectionName,
           ChargingStationSequenceTypeEnum.getChargingProfiles,
         ),
         chargingProfile: {
