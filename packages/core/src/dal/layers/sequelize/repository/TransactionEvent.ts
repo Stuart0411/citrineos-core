@@ -612,21 +612,13 @@ export class SequelizeTransactionEventRepository
       return existing;
     }
 
-    try {
-      return await Evse.create(
-        {
-          ...where,
-          evseId: String(evseTypeId),
-        },
-        { transaction },
-      );
-    } catch (error) {
-      const raced = await Evse.findOne({ where, transaction });
-      if (raced) {
-        return raced;
-      }
-      throw error;
-    }
+    return await Evse.create(
+      {
+        ...where,
+        evseId: String(evseTypeId),
+      },
+      { transaction },
+    );
   }
 
   async updateTransactionTotalCostById(
