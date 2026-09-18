@@ -48,22 +48,42 @@ import { TenantQuerySchema, type TenantQueryString } from '@dal/interfaces/index
 
 const EmsAutoApplyConfigBodySchema = {
   $id: 'EmsAutoApplyConfigBodySchema',
-  ...z.toJSONSchema(
-    z.object({
-      siteId: z.string().min(1),
-      stationIds: z.array(z.string().min(1)).min(1),
-      evseId: z.number().int().min(1).default(1),
-      strategy: z.enum(['equal_share_online', 'equal_share_all']).default('equal_share_online'),
-      profileOption: z
-        .enum(['maxChargingProfile', 'externalConstraints', 'txProfileDynamicExternalLimits'])
-        .optional(),
-      chargingProfilePurpose: z.string().min(1).default('ChargingStationExternalConstraints'),
-      operationMode: z.string().min(1).default('ExternalLimits'),
-      applicationPath: z.enum(['absolute', 'dynamic']).default('absolute'),
-      enabled: z.boolean().default(true),
-    }),
-    { target: 'draft-7', reused: 'ref' },
-  ),
+  type: 'object',
+  required: ['siteId', 'stationIds'],
+  properties: {
+    siteId: { type: 'string', minLength: 1 },
+    stationIds: {
+      type: 'array',
+      minItems: 1,
+      items: { type: 'string', minLength: 1 },
+    },
+    evseId: { type: 'integer', minimum: 1, default: 1 },
+    strategy: {
+      type: 'string',
+      enum: ['equal_share_online', 'equal_share_all'],
+      default: 'equal_share_online',
+    },
+    profileOption: {
+      type: 'string',
+      enum: [
+        'maxChargingProfile',
+        'externalConstraints',
+        'txProfileDynamicExternalLimits',
+      ],
+    },
+    chargingProfilePurpose: {
+      type: 'string',
+      minLength: 1,
+      default: 'ChargingStationExternalConstraints',
+    },
+    operationMode: { type: 'string', minLength: 1, default: 'ExternalLimits' },
+    applicationPath: {
+      type: 'string',
+      enum: ['absolute', 'dynamic'],
+      default: 'absolute',
+    },
+    enabled: { type: 'boolean', default: true },
+  },
 };
 
 const EmsSiteIntentCreateBodySchema = {
