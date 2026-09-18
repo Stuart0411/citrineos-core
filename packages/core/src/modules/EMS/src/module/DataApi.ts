@@ -88,12 +88,12 @@ const EmsAutoApplyConfigBodySchema = {
 
 const EmsSiteIntentCreateBodySchema = {
   $id: 'EmsSiteIntentCreateBodySchema',
-  ...z.toJSONSchema(EmsSiteIntentCreateSchema, { target: 'draft-7', reused: 'ref' }),
+  ...z.toJSONSchema(EmsSiteIntentCreateSchema, { target: 'openapi-3.0' }),
 };
 
 const EmsChargingPlanRequestBodySchema = {
   $id: 'EmsChargingPlanRequestBodySchema',
-  ...z.toJSONSchema(EmsChargingPlanRequestSchema, { target: 'draft-7', reused: 'ref' }),
+  ...z.toJSONSchema(EmsChargingPlanRequestSchema, { target: 'openapi-3.0' }),
 };
 
 export class EmsDataApi extends AbstractModuleApi<EmsModule> implements IEmsModuleApi {
