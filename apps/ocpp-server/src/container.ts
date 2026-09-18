@@ -56,6 +56,8 @@ import {
   DrizzleServerNetworkProfileRepository,
   DrizzleSubscriptionRepository,
   DrizzleTenantRepository,
+  EmsDataApi,
+  EmsModule,
   EVDriverDataApi,
   EVDriverModule,
   EVDriverOcpp16Api,
@@ -95,6 +97,8 @@ import {
   SequelizeComponentRepository,
   SequelizeDeleteCertificateAttemptRepository,
   SequelizeDeviceModelRepository,
+  SequelizeEmsDecisionRepository,
+  SequelizeEmsSiteIntentRepository,
   SequelizeInstallCertificateAttemptRepository,
   SequelizeInstalledCertificateRepository,
   SequelizeLocalAuthListRepository,
@@ -105,6 +109,7 @@ import {
   SequelizeSecurityEventRepository,
   SequelizeServerNetworkProfileRepository,
   SequelizeSubscriptionRepository,
+  SequelizeStationEnergyTransferPolicyRepository,
   SequelizeTariffRepository,
   SequelizeTenantRepository,
   SequelizeTransactionEventRepository,
@@ -285,6 +290,11 @@ function registerRepositories(container: AwilixContainer): void {
       SequelizeDeleteCertificateAttemptRepository,
     ).singleton(),
     deviceModelRepository: asClass(SequelizeDeviceModelRepository).singleton(),
+    emsDecisionRepository: asFunction(
+      ({ config, logger, sequelizeInstance }) =>
+        new SequelizeEmsDecisionRepository(config, logger, sequelizeInstance),
+    ).singleton(),
+    emsSiteIntentRepository: asClass(SequelizeEmsSiteIntentRepository).singleton(),
     installCertificateAttemptRepository: asClass(
       SequelizeInstallCertificateAttemptRepository,
     ).singleton(),
@@ -300,6 +310,10 @@ function registerRepositories(container: AwilixContainer): void {
     securityEventRepository: asClass(SequelizeSecurityEventRepository).singleton(),
     serverNetworkProfileRepository: asClass(SequelizeServerNetworkProfileRepository).singleton(),
     subscriptionRepository: asClass(SequelizeSubscriptionRepository).singleton(),
+    stationEnergyTransferPolicyRepository: asFunction(
+      ({ config, logger, sequelizeInstance }) =>
+        new SequelizeStationEnergyTransferPolicyRepository(config, logger, sequelizeInstance),
+    ).singleton(),
     tariffRepository: asClass(SequelizeTariffRepository).singleton(),
     tenantRepository: asClass(SequelizeTenantRepository).singleton(),
     transactionEventRepository: asClass(SequelizeTransactionEventRepository).singleton(),
@@ -387,6 +401,7 @@ function registerModules(container: AwilixContainer): void {
   container.register({
     certificatesModule: asClass(CertificatesModule).scoped(),
     configurationModule: asClass(ConfigurationModule).scoped(),
+    emsModule: asClass(EmsModule).scoped(),
     evDriverModule: asClass(EVDriverModule).scoped(),
     monitoringModule: asClass(MonitoringModule).scoped(),
     reportingModule: asClass(ReportingModule).scoped(),
@@ -406,6 +421,7 @@ function registerModuleApis(container: AwilixContainer): void {
     configurationOcpp2Api: asClass(ConfigurationOcpp2Api).scoped(),
     configurationOcpp16Api: asClass(ConfigurationOcpp16Api).scoped(),
     configurationDataApi: asClass(ConfigurationDataApi).scoped(),
+    emsDataApi: asClass(EmsDataApi).scoped(),
     evDriverOcpp2Api: asClass(EVDriverOcpp2Api).scoped(),
     evDriverOcpp16Api: asClass(EVDriverOcpp16Api).scoped(),
     evDriverDataApi: asClass(EVDriverDataApi).scoped(),

@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-import type { EmsSiteIntentCreate, SystemConfig } from '@citrineos/base';
+import type { EmsSiteIntentCreate, SystemConfig } from '@citrineos/types';
 
 const DEFAULT_MAX_AGE_MS = 5 * 60 * 1000;
 const DEFAULT_MAX_FUTURE_SKEW_MS = 30 * 1000;

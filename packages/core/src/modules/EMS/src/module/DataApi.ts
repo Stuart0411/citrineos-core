@@ -16,15 +16,9 @@ import {
 } from '@dal/interfaces/index.js';
 import { EmsDecision, EmsSiteIntent } from '@dal/layers/sequelize/index.js';
 import {
-  EmsChargingPlanRequestSchema,
   AbstractModuleApi,
   AsDataEndpoint,
   BadRequestError,
-  EmsSiteIntentCreateSchema,
-  HttpMethod,
-  Namespace,
-  OCPP1_6_Namespace,
-  OCPP2_Namespace,
 } from '@citrineos/base';
 import type {
   EmsApplyChargingPlanResponse,
@@ -32,7 +26,15 @@ import type {
   EmsChargingPlanRequest,
   EmsChargingPlanResponse,
   EmsSiteIntentCreate,
-} from '@citrineos/base';
+} from '@citrineos/types';
+import {
+  EmsChargingPlanRequestSchema,
+  EmsSiteIntentCreateSchema,
+  HttpMethod,
+  Namespace,
+  OCPP1_6_Namespace,
+  OCPP2_Namespace,
+} from '@citrineos/types';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { Op } from 'sequelize';
 import { UniqueConstraintError } from 'sequelize';

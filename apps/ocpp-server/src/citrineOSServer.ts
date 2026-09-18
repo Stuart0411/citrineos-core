@@ -97,6 +97,11 @@ export class CitrineOSServer {
       routeApis: ['configurationOcpp2Api', 'configurationOcpp16Api', 'configurationDataApi'],
       configKey: 'configuration',
     },
+    [EventGroup.Ems]: {
+      moduleToken: 'emsModule',
+      routeApis: ['emsDataApi'],
+      configKey: 'ems',
+    },
     [EventGroup.EVDriver]: {
       moduleToken: 'evDriverModule',
       routeApis: ['evDriverOcpp2Api', 'evDriverOcpp16Api', 'evDriverDataApi'],

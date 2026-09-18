@@ -3,12 +3,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {
-  DEFAULT_TENANT_ID,
   EmsSiteIntentSchema,
   type EmsSiteIntentCreate,
   type EmsIntakeEventReasonCode,
   type SystemConfig,
-} from '@citrineos/base';
+} from '@citrineos/types';
+import { DEFAULT_TENANT_ID } from '@citrineos/base';
 import type {
   IEmsDecisionRepository,
   IEmsSiteIntentRepository,

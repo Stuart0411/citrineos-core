@@ -7,14 +7,14 @@ import type {
   EmsChargingPlanResponse,
   ChargingStationDto,
   OCPPVersion,
-} from '@citrineos/base';
+} from '@citrineos/types';
 import type {
   IDeviceModelRepository,
   IEmsSiteIntentRepository,
   ILocationRepository,
   IStationEnergyTransferPolicyRepository,
 } from '@dal/interfaces/repositories.js';
-import { OCPPVersion as OCPPVersionEnum } from '@citrineos/base';
+import { OCPPVersion as OCPPVersionEnum } from '@citrineos/types';
 
 export class EmsPolicyEngine {
   constructor(

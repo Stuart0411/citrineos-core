@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-import type { EmsIntakeEventReasonCode } from '@citrineos/base';
+import type { EmsIntakeEventReasonCode } from '@citrineos/types';
 import { UniqueConstraintError } from 'sequelize';
 import { ZodError } from 'zod';
 

@@ -3,33 +3,36 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type {
-  EmsApplyChargingPlanResponse,
-  EmsChargingPlanReconciliationResponse,
-  EmsChargingPlanRequest,
-  BootstrapConfig,
-  CallAction,
-  ChargingLimitSourceEnumType,
-  ICache,
   IMessage,
   IMessageConfirmation,
-  IMessageHandler,
-  IMessageSender,
   OCPP2_common_types,
   OCPP2_request_types,
   OCPP2_response_types,
-  SystemConfig,
 } from '@citrineos/base';
 import {
   AbstractModule,
   AsHandler,
+  OCPPValidator,
+} from '@citrineos/base';
+import type { OcppModuleDependencies } from '@citrineos/base';
+import type {
+  CallAction,
+  ChargingLimitSourceEnumType,
+  EmsApplyChargingPlanResponse,
+  EmsChargingPlanReconciliationResponse,
+  EmsChargingPlanRequest,
+} from '@citrineos/types';
+import {
   ChargingLimitSourceEnum,
   ChargingProfileStatusEnum,
   ChargingStationSequenceTypeEnum,
   EventGroup,
-  OCPPValidator,
+  OCPP2_0_1,
+  OCPP2_1,
+  OCPP_CallAction,
+  OCPPVersion,
   OCPP_2_VER_LIST,
-} from '@citrineos/base';
-import { OCPP2_0_1, OCPP2_1, OCPP_CallAction, OCPPVersion } from '@citrineos/base';
+} from '@citrineos/types';
 import type {
   IChargingProfileRepository,
   IDeviceModelRepository,
@@ -39,14 +42,6 @@ import type {
 } from '@dal/interfaces/repositories.js';
 import type { ILocationRepository } from '@dal/interfaces/repositories.js';
 import * as OCPP2_0_1_Mapper from '@dal/layers/sequelize/mapper/2.0.1/index.js';
-import {
-  SequelizeChargingProfileRepository,
-  SequelizeChargingStationSequenceRepository,
-  SequelizeDeviceModelRepository,
-  SequelizeEmsDecisionRepository,
-  SequelizeEmsSiteIntentRepository,
-  SequelizeLocationRepository,
-} from '@dal/layers/sequelize/index.js';
 import { Op } from 'sequelize';
 import { IdGenerator } from '@util/util/idGenerator.js';
 import type { ILogObj } from 'tslog';
@@ -65,6 +60,16 @@ export type EmsAutoApplyConfig = {
   applicationPath: EmsChargingPlanRequest['applicationPath'];
   enabled: boolean;
 };
+
+export interface EmsModuleDependencies extends OcppModuleDependencies {
+  emsSiteIntentRepository: IEmsSiteIntentRepository;
+  emsDecisionRepository: IEmsDecisionRepository;
+  locationRepository: ILocationRepository;
+  chargingProfileRepository: IChargingProfileRepository;
+  deviceModelRepository: IDeviceModelRepository;
+  idGenerator: IdGenerator;
+  stationEnergyTransferPolicyRepository: IStationEnergyTransferPolicyRepository;
+}
 
 type DynamicProfileSnapshot = {
   id?: unknown;
@@ -149,22 +154,23 @@ export class EmsModule extends AbstractModule {
     } as unknown as IDeviceModelRepository;
   }
 
-  constructor(
-    config: BootstrapConfig & SystemConfig,
-    cache: ICache,
-    sender: IMessageSender,
-    handler: IMessageHandler,
-    logger?: Logger<ILogObj>,
-    ocppValidator?: OCPPValidator,
-    emsSiteIntentRepository?: IEmsSiteIntentRepository,
-    emsDecisionRepository?: IEmsDecisionRepository,
-    locationRepository?: ILocationRepository,
-    chargingProfileRepository?: IChargingProfileRepository,
-    idGenerator?: IdGenerator,
-    deviceModelRepository?: IDeviceModelRepository,
-    stationEnergyTransferPolicyRepository?: IStationEnergyTransferPolicyRepository,
-  ) {
-    super(config, cache, handler, sender, EventGroup.Ems, logger, ocppValidator);
+  constructor({
+    config,
+    cache,
+    sender,
+    handler,
+    logger,
+    ocppValidator,
+    ocppSender,
+    emsSiteIntentRepository,
+    emsDecisionRepository,
+    locationRepository,
+    chargingProfileRepository,
+    idGenerator,
+    deviceModelRepository,
+    stationEnergyTransferPolicyRepository,
+  }: EmsModuleDependencies) {
+    super(config, cache, handler, sender, EventGroup.Ems, ocppSender, logger, ocppValidator);
     this._requests = Array.from(
       new Set([...(config.modules.ems?.requests ?? []), OCPP_CallAction.ReportChargingProfiles]),
     );
@@ -175,19 +181,11 @@ export class EmsModule extends AbstractModule {
         OCPP_CallAction.ClearChargingProfile,
       ]),
     );
-    this._emsSiteIntentRepository =
-      emsSiteIntentRepository || new SequelizeEmsSiteIntentRepository(config, logger);
-    this._emsDecisionRepository =
-      emsDecisionRepository || new SequelizeEmsDecisionRepository(config, logger);
-    this._locationRepository =
-      locationRepository || new SequelizeLocationRepository(config, logger);
-    this._chargingProfileRepository =
-      chargingProfileRepository || new SequelizeChargingProfileRepository(config, logger);
-    this._deviceModelRepository =
-      deviceModelRepository ||
-      ((config as { database?: unknown }).database
-        ? new SequelizeDeviceModelRepository(config, logger)
-        : EmsModule._createNoopDeviceModelRepository());
+    this._emsSiteIntentRepository = emsSiteIntentRepository;
+    this._emsDecisionRepository = emsDecisionRepository;
+    this._locationRepository = locationRepository;
+    this._chargingProfileRepository = chargingProfileRepository;
+    this._deviceModelRepository = deviceModelRepository;
     this._stationEnergyTransferPolicyRepository = stationEnergyTransferPolicyRepository;
     this._mqttBridge = new EmsMqttBridge(
       config,
@@ -203,9 +201,7 @@ export class EmsModule extends AbstractModule {
       this._deviceModelRepository,
       this._stationEnergyTransferPolicyRepository,
     );
-    this._idGenerator =
-      idGenerator ||
-      new IdGenerator(new SequelizeChargingStationSequenceRepository(config, this._logger));
+    this._idGenerator = idGenerator;
   }
 
   get emsSiteIntentRepository(): IEmsSiteIntentRepository {

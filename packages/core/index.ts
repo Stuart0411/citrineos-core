@@ -12,6 +12,7 @@ export { loadSystemConfig } from './src/server/ConfigLoader.js';
 export * from '@modules/Certificates/src/index.js';
 export * from '@modules/Configuration/src/index.js';
 export * from '@modules/EVDriver/src/index.js';
+export * from '@modules/EMS/src/index.js';
 export * from '@modules/Monitoring/src/index.js';
 export * from '@modules/OcppRouter/src/index.js';
 export * from '@modules/Reporting/src/index.js';
