@@ -130,6 +130,10 @@ export class SequelizeTransactionEventRepository
               ocppConnectionName: ocppConnectionName,
               evseTypeId: value.evse.id,
             },
+            defaults: {
+              evseId: String(value.evse.id),
+            },
+            transaction: sequelizeTransaction,
           });
           evseId = evse.id;
         }
@@ -142,6 +146,10 @@ export class SequelizeTransactionEventRepository
               ocppConnectionName: ocppConnectionName,
               evseTypeId: value.evse.id,
             },
+            defaults: {
+              evseId: String(value.evse.id),
+            },
+            transaction: sequelizeTransaction,
           });
           const [connector] = await this.connector.readOrCreateByQuery(tenantId, {
             where: {
@@ -151,6 +159,7 @@ export class SequelizeTransactionEventRepository
               evseTypeConnectorId: value.evse.connectorId,
             },
             include: [Tariff],
+            transaction: sequelizeTransaction,
           });
           connectorId = connector.id;
           tariffId = connector.tariff?.id;
@@ -220,6 +229,10 @@ export class SequelizeTransactionEventRepository
               ocppConnectionName: ocppConnectionName,
               evseTypeId: value.evse.id,
             },
+            defaults: {
+              evseId: String(value.evse.id),
+            },
+            transaction: sequelizeTransaction,
           });
           newTransaction.set('evseId', evse.id);
           if (value.evse?.connectorId) {
@@ -232,6 +245,7 @@ export class SequelizeTransactionEventRepository
               },
               defaults: { connectorId: value.evse.connectorId },
               include: [Tariff],
+              transaction: sequelizeTransaction,
             });
             newTransaction.set('connectorId', connector.id);
             if (infoTariffId) {
