@@ -124,7 +124,7 @@ export class SequelizeTransactionEventRepository
       if (existingTransaction) {
         let evseId = existingTransaction.evseId;
         if (!evseId && value.evse) {
-          const evse = await this.readOrCreateOcpp2Evse(
+          const { evse } = await this.readOrCreateOcpp2Evse(
             tenantId,
             ocppConnectionName,
             value.evse.id,
@@ -135,7 +135,7 @@ export class SequelizeTransactionEventRepository
         let connectorId = existingTransaction.connectorId;
         let tariffId = existingTransaction.tariffId;
         if (!connectorId && value.evse?.connectorId) {
-          const evse = await this.readOrCreateOcpp2Evse(
+          const { evse, evseTypeDatabaseId } = await this.readOrCreateOcpp2Evse(
             tenantId,
             ocppConnectionName,
             value.evse.id,
@@ -146,7 +146,7 @@ export class SequelizeTransactionEventRepository
               tenantId,
               ocppConnectionName: ocppConnectionName,
               evseId: evse.id,
-              evseTypeConnectorId: value.evse.connectorId,
+              evseTypeConnectorId: evseTypeDatabaseId,
             },
             include: [Tariff],
             transaction: sequelizeTransaction,
@@ -213,7 +213,7 @@ export class SequelizeTransactionEventRepository
         });
 
         if (value.evse) {
-          const evse = await this.readOrCreateOcpp2Evse(
+          const { evse, evseTypeDatabaseId } = await this.readOrCreateOcpp2Evse(
             tenantId,
             ocppConnectionName,
             value.evse.id,
@@ -226,9 +226,12 @@ export class SequelizeTransactionEventRepository
                 tenantId,
                 ocppConnectionName: ocppConnectionName,
                 evseId: evse.id,
-                evseTypeConnectorId: value.evse.connectorId,
+                evseTypeConnectorId: evseTypeDatabaseId,
               },
-              defaults: { connectorId: value.evse.connectorId },
+              defaults: {
+                connectorId: value.evse.connectorId,
+                evseTypeConnectorId: evseTypeDatabaseId,
+              },
               include: [Tariff],
               transaction: sequelizeTransaction,
             });
@@ -601,24 +604,34 @@ export class SequelizeTransactionEventRepository
     ocppConnectionName: string,
     evseTypeId: number,
     transaction: SequelizeTransaction,
-  ): Promise<Evse> {
+  ): Promise<{ evse: Evse; evseTypeDatabaseId: number }> {
+    const evseType =
+      (await EvseType.findOne({
+        where: { tenantId, id: evseTypeId },
+        transaction,
+      })) ??
+      (await EvseType.create(
+        { tenantId, id: evseTypeId },
+        { transaction },
+      ));
     const where = {
       tenantId,
       ocppConnectionName,
-      evseTypeId,
+      evseTypeId: evseType.databaseId,
     };
     const existing = await Evse.findOne({ where, transaction });
     if (existing) {
-      return existing;
+      return { evse: existing, evseTypeDatabaseId: evseType.databaseId };
     }
 
-    return await Evse.create(
+    const evse = await Evse.create(
       {
         ...where,
         evseId: String(evseTypeId),
       },
       { transaction },
     );
+    return { evse, evseTypeDatabaseId: evseType.databaseId };
   }
 
   async updateTransactionTotalCostById(
