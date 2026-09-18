@@ -451,6 +451,14 @@ export class RabbitMqReceiver extends AbstractMessageHandler {
           message.content.toString(),
         );
         const messageData = JSON.parse(message.content.toString());
+        const rawContext = messageData.context || messageData._context || {};
+        const context = {
+          correlationId: rawContext.correlationId ?? rawContext._correlationId,
+          tenantId: rawContext.tenantId ?? rawContext._tenantId,
+          ocppConnectionName:
+            rawContext.ocppConnectionName ?? rawContext._ocppConnectionName,
+          timestamp: rawContext.timestamp ?? rawContext._timestamp,
+        };
 
         // Create Message instance with generic payload (no type transformation needed)
         parsedMessage = new Message<OcppRequest | OcppResponse | OcppError>(
@@ -458,7 +466,7 @@ export class RabbitMqReceiver extends AbstractMessageHandler {
           messageData.eventGroup || messageData._eventGroup,
           messageData.action || messageData._action,
           messageData.state || messageData._state,
-          messageData.context || messageData._context,
+          context,
           (messageData.payload || messageData._payload) as OcppRequest | OcppResponse | OcppError,
           messageData.protocol || messageData._protocol,
         );
