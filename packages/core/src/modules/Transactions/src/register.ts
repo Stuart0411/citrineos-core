@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { asClass, asFunction, type AwilixContainer } from 'awilix';
+import type { ILogObj, Logger } from 'tslog';
 import {
   AbstractHandler,
   buildHandlers,
@@ -60,15 +61,24 @@ export function registerTransactionsServices(container: AwilixContainer): void {
     // only when invoked at runtime (deferred), so there is no construction-time resolution
     // cycle. The param annotation keeps `sendCall` fully type-checked.
     costUpdatedNotifier: asFunction(
-      (deps: { transactionsModule: TransactionsModule }): CostUpdatedNotifier =>
+      (deps: { transactionsModule: TransactionsModule; logger: Logger<ILogObj> }): CostUpdatedNotifier =>
         async ({ ocppConnectionName, tenantId, totalCost, transactionId, protocol }) => {
-          await deps.transactionsModule.sendCall(
+          const confirmation = await deps.transactionsModule.sendCall(
             ocppConnectionName,
             tenantId,
             protocol,
             OCPP_CallAction.CostUpdated,
             { totalCost, transactionId },
           );
+          if (confirmation.success) {
+            deps.logger.debug(
+              `Sent CostUpdated call for ${transactionId} transaction with ${totalCost} cost`,
+            );
+          } else {
+            deps.logger.warn(
+              `Failed to send CostUpdated call for ${transactionId} transaction to ${ocppConnectionName}: ${confirmation.payload}`,
+            );
+          }
         },
     ).scoped(),
     transactionsHandlers: asFunction((cradle: HandlerResolverCradle): AbstractHandler[] =>

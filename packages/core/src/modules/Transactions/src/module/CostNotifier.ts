@@ -79,6 +79,13 @@ export class CostNotifier extends Scheduler {
     tenantId: number,
     protocol: OCPPVersionType,
   ): Promise<void> {
+    if (!transaction.ocppConnectionName) {
+      this._logger.error(
+        `Cannot send CostUpdated call for ${transaction.transactionId} transaction: ocppConnectionName is missing on the stored transaction.`,
+      );
+      return;
+    }
+
     const cost = await this._costCalculator.calculateTotalCost(
       tenantId,
       transaction.connectorId,
@@ -98,9 +105,6 @@ export class CostNotifier extends Scheduler {
       transactionId: transaction.transactionId,
       protocol,
     });
-    this._logger.debug(
-      `Sent CostUpdated call for ${transaction.transactionId} transaction with ${cost} cost`,
-    );
   }
 
   private async _tryNotify(
