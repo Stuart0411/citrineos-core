@@ -4,7 +4,7 @@
 
 import { type ChargingStationDto, type OCPP2_0_1, OCPPVersion } from '@citrineos/types';
 import { CrudRepository } from '@citrineos/base';
-import { Op } from 'sequelize';
+import { Op, UniqueConstraintError } from 'sequelize';
 import { type ILocationRepository } from '../../../interfaces/repositories.js';
 import { EvseType } from '../model/DeviceModel/EvseType.js';
 import { ChargingStation } from '../model/Location/ChargingStation.js';
@@ -258,41 +258,48 @@ export class SequelizeLocationRepository
   ): Promise<ChargingStation> {
     chargingStation.tenantId = tenantId;
     if (chargingStation.ocppConnectionName) {
-      const [savedChargingStation, chargingStationCreated] =
-        await this.chargingStation.readOrCreateByQuery(tenantId, {
-          where: {
-            tenantId,
-            ocppConnectionName: chargingStation.ocppConnectionName,
-          },
-          defaults: {
-            locationId: chargingStation.locationId,
-            chargePointVendor: chargingStation.chargePointVendor,
-            chargePointModel: chargingStation.chargePointModel,
-            chargePointSerialNumber: chargingStation.chargePointSerialNumber,
-            chargeBoxSerialNumber: chargingStation.chargeBoxSerialNumber,
-            firmwareVersion: chargingStation.firmwareVersion,
-            iccid: chargingStation.iccid,
-            imsi: chargingStation.imsi,
-            meterType: chargingStation.meterType,
-            meterSerialNumber: chargingStation.meterSerialNumber,
-          },
-        });
-      if (!chargingStationCreated) {
-        await savedChargingStation.update({
-          locationId: chargingStation.locationId,
-          chargePointVendor: chargingStation.chargePointVendor,
-          chargePointModel: chargingStation.chargePointModel,
-          chargePointSerialNumber: chargingStation.chargePointSerialNumber,
-          chargeBoxSerialNumber: chargingStation.chargeBoxSerialNumber,
-          firmwareVersion: chargingStation.firmwareVersion,
-          iccid: chargingStation.iccid,
-          imsi: chargingStation.imsi,
-          meterType: chargingStation.meterType,
-          meterSerialNumber: chargingStation.meterSerialNumber,
-        });
+      // Only include fields the caller actually provided so a partial payload
+      // (e.g. BootNotification without a locationId) can't null out existing data.
+      const updatableFields: Partial<ChargingStationDto> = {
+        locationId: chargingStation.locationId,
+        chargePointVendor: chargingStation.chargePointVendor,
+        chargePointModel: chargingStation.chargePointModel,
+        chargePointSerialNumber: chargingStation.chargePointSerialNumber,
+        chargeBoxSerialNumber: chargingStation.chargeBoxSerialNumber,
+        firmwareVersion: chargingStation.firmwareVersion,
+        iccid: chargingStation.iccid,
+        imsi: chargingStation.imsi,
+        meterType: chargingStation.meterType,
+        meterSerialNumber: chargingStation.meterSerialNumber,
+      };
+      for (const key of Object.keys(updatableFields) as (keyof typeof updatableFields)[]) {
+        if (updatableFields[key] === undefined) {
+          delete updatableFields[key];
+        }
       }
 
-      return savedChargingStation;
+      const where = { tenantId, ocppConnectionName: chargingStation.ocppConnectionName };
+      const existing = await ChargingStation.findOne({ where });
+      if (existing) {
+        await existing.update(updatableFields);
+        return existing;
+      }
+
+      // Concurrent connection-open handling may create this row between the
+      // findOne above and here; fall back to an update instead of erroring out.
+      try {
+        return await ChargingStation.create({ ...where, ...updatableFields });
+      } catch (error) {
+        if (!(error instanceof UniqueConstraintError)) {
+          throw error;
+        }
+        const raced = await ChargingStation.findOne({ where });
+        if (!raced) {
+          throw error;
+        }
+        await raced.update(updatableFields);
+        return raced;
+      }
     } else {
       return await this.chargingStation.create(
         tenantId,
