@@ -609,9 +609,9 @@ export class SmartChargingOcpp2Api
     );
   }
 
-  @AsMessageEndpoint(OCPP_CallAction.UpdateDynamicSchedule, (instance: SmartChargingOcpp2Api) =>
+  @AsMessageEndpoint(OCPP_CallAction.UpdateDynamicSchedule, (_instance: SmartChargingOcpp2Api, version) =>
     getOcpp2Schema(
-      (instance._ocppVersion ?? DEFAULT_VERSION) as Exclude<OCPPVersion, OCPPVersion.OCPP1_6>,
+      (version ?? DEFAULT_VERSION) as Exclude<OCPPVersion, OCPPVersion.OCPP1_6>,
       'UpdateDynamicScheduleRequestSchema',
     ),
   )
