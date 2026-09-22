@@ -92,6 +92,21 @@ export class EmsMqttBridge {
       this.started = false;
       this.logger.warn('EMS MQTT bridge connection closed.');
     });
+    // Reacts to every successful (re)connection, including automatic reconnects
+    // triggered by the client's own reconnectPeriod after the initial attempt below
+    // fails — this is what lets the bridge recover on its own once the broker becomes
+    // reachable, without anyone needing to poll the status endpoint.
+    this.client.on('connect', () => {
+      this.started = true;
+      this.lastError = null;
+      this.client?.subscribe(topic, (error) => {
+        if (error) {
+          this.logger.warn(`EMS MQTT bridge failed to subscribe to ${topic}: ${error.message}`);
+          return;
+        }
+        this.logger.info(`EMS MQTT bridge (re)subscribed to ${topic}`);
+      });
+    });
 
     try {
       await new Promise<void>((resolve, reject) => {
@@ -147,7 +162,7 @@ export class EmsMqttBridge {
       this.lastError = null;
       this.logger.info(`EMS MQTT bridge subscribed to ${topic}`);
     } catch (error) {
-      await this.handleStartupFailure(error);
+      await this.handleStartupFailure(error, true);
     }
   }
 
@@ -468,13 +483,24 @@ export class EmsMqttBridge {
     }
   }
 
-  private async handleStartupFailure(error: unknown): Promise<void> {
+  private async handleStartupFailure(error: unknown, keepClientAlive = false): Promise<void> {
     const mqttConfig = this.config.modules.ems?.mqtt;
     const message = error instanceof Error ? error.message : 'Unknown EMS MQTT startup failure';
     this.lastError = message;
 
     if (mqttConfig?.startupMode === 'required') {
+      await this.shutdown();
       throw error instanceof Error ? error : new Error(message);
+    }
+
+    if (keepClientAlive && this.client) {
+      // Leave the client running: mqtt.js keeps retrying on its own reconnectPeriod,
+      // and the persistent 'connect' handler above will mark the bridge started and
+      // re-subscribe once a reconnect succeeds — no manual restart required.
+      this.logger.warn(
+        `EMS MQTT bridge not started yet: ${message}. Will keep retrying in the background.`,
+      );
+      return;
     }
 
     this.logger.warn(`EMS MQTT bridge not started: ${message}`);
