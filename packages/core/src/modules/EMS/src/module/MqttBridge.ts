@@ -192,12 +192,24 @@ export class EmsMqttBridge {
       return;
     }
 
-    await new Promise<void>((resolve) => {
-      this.client?.end(true, {}, () => resolve());
-    });
-
+    const client = this.client;
     this.client = undefined;
     this.started = false;
+
+    await new Promise<void>((resolve) => {
+      let settled = false;
+      const finish = () => {
+        if (!settled) {
+          settled = true;
+          resolve();
+        }
+      };
+      const timeout = setTimeout(finish, 1000);
+      client.end(true, {}, () => {
+        clearTimeout(timeout);
+        finish();
+      });
+    });
   }
 
   isStarted(): boolean {
