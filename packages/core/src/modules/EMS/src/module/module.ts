@@ -619,9 +619,15 @@ export class EmsModule extends AbstractModule {
     const results = [] as EmsChargingPlanReconciliationResponse['results'];
 
     for (const recommendation of plan.recommendations) {
+      const station = (
+        await this._locationRepository.getChargingStationsByIds(tenantId, [
+          recommendation.stationId,
+        ])
+      )[0];
+      const stationConnectionName = station?.ocppConnectionName ?? recommendation.stationId;
       const activeProfiles = await this._chargingProfileRepository.readAllByQuery(tenantId, {
         where: {
-          stationId: recommendation.stationId,
+          ocppConnectionName: stationConnectionName,
           chargingLimitSource: ChargingLimitSourceEnum.EMS,
           isActive: true,
         },
@@ -724,7 +730,7 @@ export class EmsModule extends AbstractModule {
 
     const byEvse = await this._chargingProfileRepository.readAllByQuery(tenantId, {
       where: {
-        stationId,
+        ocppConnectionName: stationId,
         evseId,
         ...dynamicProfileQuery,
       },
@@ -738,7 +744,7 @@ export class EmsModule extends AbstractModule {
       (
         await this._chargingProfileRepository.readAllByQuery(tenantId, {
           where: {
-            stationId,
+            ocppConnectionName: stationId,
             ...dynamicProfileQuery,
           },
           include: includeChargingSchedules,
