@@ -186,13 +186,17 @@ export class SequelizeLocationRepository
 
   async getChargingStationsByIds(
     tenantId: number,
-    stationNames: string[],
+    stationIds: string[],
   ): Promise<ChargingStation[]> {
+    const numericIds = stationIds
+      .filter((stationId) => /^\d+$/.test(stationId))
+      .map((stationId) => Number(stationId));
     const query = {
       where: {
-        ocppConnectionName: {
-          [Op.in]: stationNames,
-        },
+        [Op.or]: [
+          ...(numericIds.length > 0 ? [{ id: { [Op.in]: numericIds } }] : []),
+          { ocppConnectionName: { [Op.in]: stationIds } },
+        ],
       },
       include: [Evse, Connector],
     };

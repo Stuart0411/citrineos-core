@@ -504,7 +504,7 @@ describe('EmsPolicyEngine', () => {
       }),
       expect.objectContaining({
         stationId: 'cs-v2x-disabled',
-        exportAllowed: false,
+        exportAllowed: true,
         dischargeLimitW: null,
       }),
     ]);

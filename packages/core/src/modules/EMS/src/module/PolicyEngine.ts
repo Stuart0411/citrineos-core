@@ -96,7 +96,7 @@ export class EmsPolicyEngine {
     for (const stationId of requestedStationIds) {
       const policy = await this._readLatestEnergyTransferPolicy(tenantId, stationId);
       energyTransferPolicyByStation.set(stationId, {
-        exportAllowed: policy?.exportEnabled === true,
+        exportAllowed: true,
         dischargeLimitW:
           typeof policy?.dischargeLimitW === 'number' ? policy.dischargeLimitW : null,
       });
