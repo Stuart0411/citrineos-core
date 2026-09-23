@@ -314,6 +314,13 @@ export class EmsModule extends AbstractModule {
         continue;
       }
 
+      const station = (
+        await this._locationRepository.getChargingStationsByIds(tenantId, [
+          recommendation.stationId,
+        ])
+      )[0];
+      const stationConnectionName = station?.ocppConnectionName ?? recommendation.stationId;
+
       if (
         recommendation.protocol !== OCPPVersion.OCPP2_1 &&
         recommendation.protocol !== OCPPVersion.OCPP2_0_1
@@ -377,7 +384,7 @@ export class EmsModule extends AbstractModule {
       if (applicationPath === 'dynamic') {
         const dynamicApplyResult = await this._applyDynamicSchedule(
           tenantId,
-          recommendation.stationId,
+          stationConnectionName,
           recommendation.evseId,
           recommendation.protocol,
           recommendation.limitW,
@@ -418,11 +425,11 @@ export class EmsModule extends AbstractModule {
 
       const profileId = await this._chargingProfileRepository.getNextChargingProfileId(
         tenantId,
-        recommendation.stationId,
+        stationConnectionName,
       );
       const scheduleId = await this._chargingProfileRepository.getNextChargingScheduleId(
         tenantId,
-        recommendation.stationId,
+        stationConnectionName,
       );
       // EMS always uses stack level 0 so SetChargingProfile replaces the previous EMS profile in-place.
       const stackLevel = 0;
@@ -443,7 +450,7 @@ export class EmsModule extends AbstractModule {
       if (isMaxChargingProfile) {
         try {
           await this.sendCall(
-            recommendation.stationId,
+            stationConnectionName,
             tenantId,
             recommendation.protocol as OCPPVersion,
             OCPP_CallAction.ClearChargingProfile,
@@ -533,7 +540,7 @@ export class EmsModule extends AbstractModule {
             };
 
       const confirmation: IMessageConfirmation = await this.sendCall(
-        recommendation.stationId,
+        stationConnectionName,
         tenantId,
         protocol,
         OCPP_CallAction.SetChargingProfile,
@@ -557,7 +564,7 @@ export class EmsModule extends AbstractModule {
       await this._chargingProfileRepository.createOrUpdateChargingProfile(
         tenantId,
         OCPP2_0_1_Mapper.ChargingProfileMapper.fromChargingProfileType(chargingProfile),
-        recommendation.stationId,
+        stationConnectionName,
         recommendation.evseId,
         ChargingLimitSourceEnum.EMS as ChargingLimitSourceEnumType,
       );
