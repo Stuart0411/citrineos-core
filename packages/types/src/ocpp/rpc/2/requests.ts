@@ -192,6 +192,7 @@ export type GetChargingProfilesRequest =
 export type SetChargingProfileRequest =
   | OCPP2_1.SetChargingProfileRequest
   | OCPP2_0_1.SetChargingProfileRequest;
+export type UpdateDynamicScheduleRequest = OCPP2_1.UpdateDynamicScheduleRequest;
 export type GetCompositeScheduleRequest =
   | OCPP2_1.GetCompositeScheduleRequest
   | OCPP2_0_1.GetCompositeScheduleRequest;

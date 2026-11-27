@@ -80,6 +80,7 @@
       "ocpp.smartcharging.clearChargingProfile",
       "ocpp.smartcharging.getChargingProfiles",
       "ocpp.smartcharging.getCompositeSchedule",
+      "ocpp.smartcharging.updateDynamicSchedule",
       "ocpp.smartcharging.setChargingProfile",
       "ocpp.transactions.costUpdated",
       "ocpp.transactions.getTransactionStatus",
@@ -215,6 +216,12 @@
       "ocpp.evdriver.clearCache",
       "ocpp.evdriver.getLocalListVersion",
       "ocpp.evdriver.sendLocalList"
+    ]
+  },
+  "ems_service": {
+    "resources": {},
+    "permissions": [
+      "ocpp.smartcharging.updateDynamicSchedule"
     ]
   }
 }

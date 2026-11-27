@@ -91,6 +91,7 @@ const ocpp2_1_schemas: Record<string, AnySchemaObject> = {
   ClearChargingProfileRequestSchema: OCPP2_1.ClearChargingProfileRequestSchema,
   GetChargingProfilesRequestSchema: OCPP2_1.GetChargingProfilesRequestSchema,
   SetChargingProfileRequestSchema: OCPP2_1.SetChargingProfileRequestSchema,
+  UpdateDynamicScheduleRequestSchema: OCPP2_1.UpdateDynamicScheduleRequestSchema,
   ClearedChargingLimitRequestSchema: OCPP2_1.ClearedChargingLimitRequestSchema,
   GetCompositeScheduleRequestSchema: OCPP2_1.GetCompositeScheduleRequestSchema,
   CostUpdatedRequestSchema: OCPP2_1.CostUpdatedRequestSchema,

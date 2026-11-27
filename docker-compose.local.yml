@@ -12,6 +12,7 @@
 # setup it also frees host port 8083 and adds the mock eMSP (@citrineos/mock-msp).
 services:
   citrine:
+    pull_policy: never
     build:
       context: .
       dockerfile: ./apps/ocpp-server/deploy.Dockerfile
@@ -33,6 +34,9 @@ services:
     build:
       context: .
       dockerfile: ./apps/operator-ui/Dockerfile
+
+  ems-addon:
+    pull_policy: never
 
   citrineos-ocpi:
     build:

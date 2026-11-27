@@ -67,6 +67,7 @@ export default defineConfig({
       nodeProject('ocpp', './packages/ocpp'),
       nodeProject('dal', './packages/dal'),
       nodeProject('base', './packages/base'),
+      nodeProject('ems-addon', './packages/ems-addon'),
       nodeProject('ocpi', './packages/ocpi'),
       nodeProject('mock-msp', './apps/mock-msp'),
       // operator-ui owns its own Playwright e2e specs; vitest can't run them

@@ -10,6 +10,7 @@
 //   node scripts/stack.mjs --local         build server + UI from local source
 //   node scripts/stack.mjs --solo          ocpp-server only (no UI)
 //   node scripts/stack.mjs --ocpi          add the OCPI server
+//   node scripts/stack.mjs --ems-addon     add the EMS add-on sidecar
 //   node scripts/stack.mjs --everest       add EVerest with OCPP 2.x
 //   node scripts/stack.mjs --everest16     add EVerest with OCPP 1.6
 //   node scripts/stack.mjs --local --ocpi  combine flags freely
@@ -35,6 +36,7 @@ const KNOWN_FLAGS = new Set([
   '--local',
   '--solo',
   '--ocpi',
+  '--ems-addon',
   '--everest',
   '--everest16',
   '--help',
@@ -47,12 +49,13 @@ const flags = new Set(argv.filter((a) => a.startsWith('-')));
 const positionals = argv.filter((a) => !a.startsWith('-'));
 
 function usage() {
-  console.log(`Usage: node scripts/stack.mjs [up|down] [--local] [--solo] [--ocpi] [--everest] [--everest16]
+  console.log(`Usage: node scripts/stack.mjs [up|down] [--local] [--solo] [--ocpi] [--ems-addon] [--everest] [--everest16]
 
   (no flags)   ocpp-server + operator UI using ghcr.io images
   --local      build the server and UI from local source instead of pulling
   --solo       ocpp-server only (no operator UI)
   --ocpi       also run the OCPI server
+  --ems-addon  also run the EMS add-on sidecar profile
   --everest    also run EVerest with OCPP 2.x (mutually exclusive with --everest16)
   --everest16  also run EVerest with OCPP 1.6 (mutually exclusive with --everest)
   up | down    start (default) or stop the stack — pass the same flags both times
@@ -78,6 +81,7 @@ const command = positionals[0] ?? 'up';
 const local = flags.has('--local');
 const solo = flags.has('--solo');
 const ocpi = flags.has('--ocpi');
+const emsAddon = flags.has('--ems-addon');
 const everest = flags.has('--everest');
 const everest16 = flags.has('--everest16');
 
@@ -96,11 +100,13 @@ if (everest && everest16) {
 // Build the file list: base always, local override only with --local.
 const files = ['-f', 'docker-compose.yml'];
 if (local) files.push('-f', 'docker-compose.local.yml');
+if (emsAddon) files.push('-f', 'docker-compose.ems-addon.yml');
 
 // Build the profile list: UI on by default (off with --solo), OCPI on with --ocpi.
 const profiles = [];
 if (!solo) profiles.push('ui');
 if (ocpi) profiles.push('ocpi');
+if (emsAddon) profiles.push('ems-addon');
 const profileArgs = profiles.flatMap((p) => ['--profile', p]);
 
 const composeArgs = ['compose', ...files, ...profileArgs];

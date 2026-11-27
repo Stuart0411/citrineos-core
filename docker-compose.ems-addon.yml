@@ -1,0 +1,63 @@
+# SPDX-FileCopyrightText: 2026 Contributors to the CitrineOS Project
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# EMS add-on sidecar profile. This keeps EMS orchestration separate from Citrine
+# core while sharing the same compose network.
+#
+# Usage examples:
+#   docker compose -f docker-compose.yml -f docker-compose.ems-addon.yml --profile ui --profile ems-addon up -d
+#   docker compose -f docker-compose.yml -f docker-compose.local.yml -f docker-compose.ems-addon.yml --profile ems-addon up -d --build
+
+services:
+  ems-addon:
+    image: ghcr.io/your-org/citrineos-ems-addon:0.1.0
+    pull_policy: always
+    build:
+      context: .
+      dockerfile: ./packages/ems-addon/deploy.Dockerfile
+    profiles:
+      - ems-addon
+    env_file:
+      - ./deploy/ems-addon/.env
+    environment:
+      NODE_ENV: production
+      EMS_ADDON_HTTP_HOST: '0.0.0.0'
+      EMS_ADDON_HTTP_PORT: '8095'
+      EMS_ADDON_LOG_LEVEL: info
+      EMS_ADDON_INTENT_TTL_SECONDS: '30'
+      EMS_ADDON_SITE_DEFAULT_MODE: ExternalLimits
+      EMS_ADDON_CITRINE_BASE_URL: 'http://citrine:8080'
+      EMS_ADDON_CITRINE_TENANT_ID: '1'
+      EMS_ADDON_CITRINE_AUTH_TOKEN: '${EMS_ADDON_CITRINE_AUTH_TOKEN:-}'
+      EMS_ADDON_MQTT_BROKER_URL: 'mqtt://host.docker.internal:1883'
+      EMS_ADDON_MQTT_TOPIC_PREFIX: 'ems/site'
+      EMS_ADDON_DEFAULT_SITE_ID: 'site-default'
+      EMS_ADDON_DEFAULT_TENANT_ID: '1'
+      EMS_ADDON_DEFAULT_STATION_IDS: '10919352'
+      EMS_ADDON_DEFAULT_STATION_SUPPORTS_V2X: 'false'
+      EMS_ADDON_DEFAULT_MAX_CHARGE_W: '11000'
+      EMS_ADDON_DEFAULT_MAX_DISCHARGE_W: '7000'
+      EMS_ADDON_DEFAULT_CHARGING_PROFILE_ID: '1001'
+      EMS_ADDON_ENABLE_REST_INGRESS: 'true'
+      EMS_ADDON_ENABLE_MQTT_INGRESS: 'true'
+      EMS_ADDON_DRY_RUN: 'true'
+    ports:
+      - 8095:8095
+    depends_on:
+      citrine:
+        condition: service_healthy
+      amqp-broker:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          "node -e \"fetch('http://127.0.0.1:8095/health').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\"",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'

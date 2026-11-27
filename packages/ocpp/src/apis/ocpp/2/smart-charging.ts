@@ -6,10 +6,12 @@ import { ClearChargingProfileEndpoint } from './smart-charging/clear-charging-pr
 import { GetChargingProfilesEndpoint } from './smart-charging/get-charging-profiles-endpoint.js';
 import { GetCompositeScheduleEndpoint } from './smart-charging/get-composite-schedule-endpoint.js';
 import { SetChargingProfileEndpoint } from './smart-charging/set-charging-profile-endpoint.js';
+import { UpdateDynamicScheduleEndpoint } from './smart-charging/update-dynamic-schedule-endpoint.js';
 
 export const SMART_CHARGING_MESSAGE_ENDPOINTS = [
   ClearChargingProfileEndpoint,
   GetChargingProfilesEndpoint,
   SetChargingProfileEndpoint,
   GetCompositeScheduleEndpoint,
+  UpdateDynamicScheduleEndpoint,
 ] satisfies ReadonlyArray<MessageEndpointClass>;

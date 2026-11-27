@@ -2,6 +2,7 @@ packages:
   - "packages/types"
   - "packages/base"
   - "packages/dal"
+  - "packages/ems-addon"
   - "packages/ocpp"
   - "packages/ocpi"
   - "apps/ocpp-server"
