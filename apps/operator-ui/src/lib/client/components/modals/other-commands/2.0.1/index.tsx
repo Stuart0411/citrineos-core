@@ -7,11 +7,12 @@ import type { ChargingStationDto } from '@citrineos/types';
 import {
   OCPP2_0_1_COMMANDS_REGISTRY,
   type CommandDefinition,
-} from '@lib/client/components/modals/2.0.1/commands-registry';
+} from '@lib/client/components/modals/2.0.1/commands.registry';
 import { Button } from '@lib/client/components/ui/button';
-import { closeModal, openModal } from '@lib/utils/store/modal-slice';
-import { useTranslate } from '@refinedev/core';
-import { useAllowedCommands } from '@lib/client/hooks/use-allowed-commands';
+import type { ListCanReturnType } from '@lib/utils/access.types';
+import { ActionType, ResourceType } from '@lib/utils/access.types';
+import { closeModal, openModal } from '@lib/utils/store/modal.slice';
+import { useCan, useTranslate } from '@refinedev/core';
 import { instanceToPlain } from 'class-transformer';
 import { useDispatch } from 'react-redux';
 
@@ -33,31 +34,40 @@ export const OCPP2_0_1_Commands = ({ station }: OCPP2_0_1_CommandsProps) => {
     );
   };
 
-  const { commands: permittedCommands, isResolved } = useAllowedCommands(
-    OCPP2_0_1_COMMANDS_REGISTRY,
-  );
+  const commandsToExclude: string[] = [];
 
-  if (isResolved && permittedCommands.length === 0) {
-    return (
-      <div className="p-4 text-sm text-muted-foreground">
-        {translate('ChargingStations.noAdditionalCommands')}
-      </div>
-    );
+  const { data } = useCan({
+    resource: ResourceType.CHARGING_STATIONS,
+    action: ActionType.COMMAND,
+    params: {
+      id: station.ocppConnectionName ?? station.id,
+      commandType: 'otherCommands',
+    },
+  });
+
+  const listData = data as ListCanReturnType;
+  if (!data?.can) {
+    return null;
+  } else if (listData?.meta?.exceptions) {
+    for (const exception of listData.meta.exceptions) {
+      if (exception.param === 'commandType') {
+        commandsToExclude.push(...exception.values);
+      }
+    }
   }
 
   return (
     <div className="size-full overflow-hidden space-y-4">
-      {isResolved &&
-        permittedCommands.map(([commandKey, commandDef]) => (
-          <Button
-            key={commandKey}
-            variant="outline"
-            className="w-full"
-            onClick={() => handleCommandClick(commandDef)}
-          >
-            {translate(commandDef.displayNameKey)}
-          </Button>
-        ))}
+      {Object.entries(OCPP2_0_1_COMMANDS_REGISTRY).map(([commandKey, commandDef]) => (
+        <Button
+          key={commandKey}
+          variant="outline"
+          className="w-full"
+          onClick={() => handleCommandClick(commandDef)}
+        >
+          {translate(commandDef.displayNameKey)}
+        </Button>
+      ))}
     </div>
   );
 };
